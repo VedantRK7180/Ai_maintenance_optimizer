@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard · Maintenance Optimizer</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('dashboard') }}"><span class="brand-mark small">MO</span> Maintenance Optimizer</a>
+    <div class="topbar-right">
+      <span class="user-chip">{{ session.get('username', 'Manager') }} <span class="role-dot"></span></span>
+      <form method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="ghost-button" type="submit">Log out</button>
+      </form>
+    </div>
+  </header>
+  <main class="page-wrap">
+    <section class="welcome-row">
+      <div>
+        <p class="eyebrow">OPERATIONS OVERVIEW</p>
+        <h1>Machine health dashboard</h1>
+        <p class="muted">Review your factory data before deciding what needs maintenance.</p>
+      </div>
+      <span class="live-pill"><span></span> Local dashboard</span>
+    </section>
+
+    {% if db_error %}
+      <div class="notice warning"><strong>Data connection:</strong> {{ db_error }}</div>
+    {% endif %}
+
+    <section class="stat-grid">
+      <article class="stat-card">
+        <span class="stat-label">Machines loaded</span>
+        <strong class="stat-value">{{ machines|length }}</strong>
+        <span class="stat-foot">From MySQL MACHINE table</span>
+      </article>
+      <article class="stat-card">
+        <span class="stat-label">Recent sensor readings</span>
+        <strong class="stat-value">{{ readings|length }}</strong>
+        <span class="stat-foot">Latest 100 readings</span>
+      </article>
+      <article class="stat-card">
+        <span class="stat-label">ML model file</span>
+        <strong class="stat-value {{ 'status-good' if model_available else 'status-warn' }}">{{ 'Available' if model_available else 'Not found' }}</strong>
+        <span class="stat-foot">ml/cnc_model_baseline.joblib</span>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div><h2>Registered machines</h2><p class="muted">Machines currently returned by your database.</p></div>
+        <span class="count-pill">{{ machines|length }} total</span>
+      </div>
+      {% if machines %}
+        <div class="table-scroll">
+          <table>
+            <thead><tr>{% for key in machines[0].keys() %}<th>{{ key.replace('_', ' ')|title }}</th>{% endfor %}</tr></thead>
+            <tbody>
+              {% for machine in machines %}
+                <tr>{% for value in machine.values() %}<td>{{ value if value is not none else '—' }}</td>{% endfor %}</tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty-state"><div class="empty-icon">01</div><h3>No machine records yet</h3><p>When MySQL is configured and the MACHINE table contains records, they will appear here.</p></div>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div><h2>Latest sensor readings</h2><p class="muted">Recent measurements available to the maintenance workflow.</p></div>
+        <span class="count-pill">{{ readings|length }} rows</span>
+      </div>
+      {% if readings %}
+        <div class="table-scroll">
+          <table>
+            <thead><tr>{% for key in readings[0].keys() %}<th>{{ key.replace('_', ' ')|title }}</th>{% endfor %}</tr></thead>
+            <tbody>
+              {% for reading in readings %}
+                <tr>{% for value in reading.values() %}<td>{{ value if value is not none else '—' }}</td>{% endfor %}</tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty-state compact"><h3>No readings to display</h3><p>Check the MySQL connection and sensor table names in the setup guide.</p></div>
+      {% endif %}
+    </section>
+    <p class="footer-note">AI Maintenance Optimizer · {{ current_year }} · Predictions are decision support, not a substitute for maintenance inspection.</p>
+  </main>
+</body>
+</html>
