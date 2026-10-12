@@ -1,6 +1,6 @@
 # Web dashboard setup
 
-This adds a small manager login and a dashboard to the existing AI Maintenance Optimizer repository. It keeps manager accounts in a local SQLite file and reads factory machine/sensor data from the existing MySQL database. It does not require changing the current MySQL password; configure the app with the credentials you already use.
+This adds a manager login and dashboard to the existing AI Maintenance Optimizer repository. It keeps manager accounts in a local SQLite file and reads factory machine/sensor data from the existing MySQL database. You do not need to change your MySQL password: put the existing password in your local `.env` file. The ML prediction script and connection test also read credentials from environment variables now.
 
 ## 1. Install dependencies
 
@@ -30,6 +30,8 @@ Generate a secret key with:
 ```bash
 python -c "import secrets; print(secrets.token_hex(32))"
 ```
+
+The existing prediction script uses `MYSQL_PASSWORD` and defaults to `MYSQL_USER=root` and `MYSQL_DATABASE=AI_Maintenance_DB` if those two settings are omitted. The web dashboard expects all four connection settings to be set explicitly.
 
 ## 3. Create the manager account
 
