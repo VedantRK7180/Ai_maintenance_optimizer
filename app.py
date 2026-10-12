@@ -1,4 +1,5 @@
 import os
+import secrets
 import sqlite3
 from datetime import datetime
 from functools import wraps
@@ -16,7 +17,7 @@ AUTH_DB = Path(os.getenv("AUTH_DB_PATH", str(BASE_DIR / "instance" / "auth.db"))
 MODEL_PATH = BASE_DIR / "ml" / "cnc_model_baseline.joblib"
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY")
+app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY") or secrets.token_hex(32)
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = os.getenv("COOKIE_SECURE", "false").lower() == "true"
@@ -83,10 +84,17 @@ def fetch_machine_summary():
         cursor.execute("SELECT * FROM MACHINE ORDER BY machine_id")
         machines = cursor.fetchall()
         cursor.execute("""
-            SELECT sr.*, sm.sensor_name
-            FROM SENSOR_READING sr
-            JOIN SENSOR_MEASUREMENT sm ON sr.sensor_id = sm.sensor_id
-            ORDER BY sr.timestamp DESC
+            SELECT
+                m.machine_name,
+                sr.reading_id,
+                sr.recorded_at,
+                sm.sensor_name,
+                sm.sensor_value,
+                sm.unit
+            FROM MACHINE m
+            JOIN SENSOR_READING sr ON m.machine_id = sr.machine_id
+            JOIN SENSOR_MEASUREMENT sm ON sr.reading_id = sm.reading_id
+            ORDER BY sr.recorded_at DESC, sr.reading_id DESC
             LIMIT 100
         """)
         readings = cursor.fetchall()
@@ -184,10 +192,8 @@ def create_admin():
 
 init_auth_db()
 
-if not app.config["SECRET_KEY"]:
-    # The server can start for setup commands, but requests fail closed until configured.
-    app.config["SECRET_KEY"] = "development-key-not-for-production"
-    app.config["SESSION_COOKIE_SECURE"] = False
+if not os.getenv("FLASK_SECRET_KEY"):
+    print("WARNING: FLASK_SECRET_KEY is not set. A temporary random key is being used; sessions will reset on restart.")
 
 if __name__ == "__main__":
     app.run(debug=os.getenv("FLASK_DEBUG", "false").lower() == "true")
