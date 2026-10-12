@@ -1,0 +1,38 @@
+# Python virtual environments
+venv/
+.venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Secrets and environment variables
+.env
+.env.*
+!.env.example
+
+# Logs and temporary files
+*.log
+*.tmp
+
+# Editor settings
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local database backups
+*.sql.gz
+*.dump
+
+# Large raw datasets and archives
+data/NASA_CMAPSS/
+data/NASA_IMS_Bearings/
+data/4.+Bearings.zip
+
+# Oversized NASA C-MAPSS model files
+ml/cmapss_rul_random_forest.joblib
+ml/cmapss_rul_random_forest_improved.joblib

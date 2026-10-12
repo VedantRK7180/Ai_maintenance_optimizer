@@ -1,0 +1,406 @@
+"""
+NASA IMS Bearing Prediction Module
+AI Maintenance Optimizer
+
+Features:
+1. Reads the existing NASA IMS health-index dataset.
+2. Automatically identifies the latest timestamp.
+3. Calculates a risk indicator from the existing health score.
+4. Preserves the condition assigned by nasa_health_index.py.
+5. Returns fields compatible with ai_decision.py.
+6. Includes input validation and error handling.
+
+IMPORTANT:
+The risk score is a health-index-derived indicator.
+It is NOT a calibrated probability of bearing failure.
+"""
+
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+
+# ============================================================
+# PROJECT CONFIGURATION
+# ============================================================
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+DATA_DIR = PROJECT_ROOT / "data"
+
+FEATURE_FILE = DATA_DIR / "nasa_ims_health_index.csv"
+
+
+# ============================================================
+# REQUIRED DATASET COLUMNS
+# ============================================================
+
+REQUIRED_COLUMNS = [
+    "file_name",
+    "health_score",
+    "condition",
+]
+
+
+# ============================================================
+# LOAD AND VALIDATE DATASET
+# ============================================================
+
+def load_bearing_data():
+    """
+    Load the existing NASA IMS health-index dataset.
+
+    Does not modify or regenerate the dataset.
+    """
+
+    if not FEATURE_FILE.exists():
+        raise FileNotFoundError(
+            "\nNASA IMS health-index dataset was not found.\n"
+            f"Expected location: {FEATURE_FILE}\n"
+            "Run ml/nasa_health_index.py if the dataset "
+            "needs to be generated."
+        )
+
+    try:
+        df = pd.read_csv(FEATURE_FILE)
+
+    except Exception as error:
+        raise RuntimeError(
+            f"Could not read NASA IMS dataset: {error}"
+        ) from error
+
+    if df.empty:
+        raise ValueError(
+            "NASA IMS health-index dataset is empty."
+        )
+
+    # Check required columns.
+    missing_columns = [
+        column
+        for column in REQUIRED_COLUMNS
+        if column not in df.columns
+    ]
+
+    if missing_columns:
+        raise ValueError(
+            "NASA IMS dataset is missing required columns: "
+            f"{missing_columns}"
+        )
+
+    # Convert health scores to numeric values.
+    df["health_score"] = pd.to_numeric(
+        df["health_score"],
+        errors="coerce",
+    )
+
+    # Remove observations with invalid essential fields.
+    df = df.dropna(
+        subset=[
+            "file_name",
+            "health_score",
+            "condition",
+        ]
+    ).copy()
+
+    if df.empty:
+        raise ValueError(
+            "No valid bearing-health observations were found."
+        )
+
+    # Reject invalid health scores instead of silently
+    # converting them into apparently valid measurements.
+    invalid_scores = ~df["health_score"].between(0, 100)
+
+    if invalid_scores.any():
+        raise ValueError(
+            "The dataset contains health scores outside "
+            "the valid range of 0 to 100."
+        )
+
+    # Normalize whitespace in existing condition labels.
+    df["condition"] = (
+        df["condition"]
+        .astype(str)
+        .str.strip()
+    )
+
+    df = df[
+        df["condition"].ne("")
+    ].copy()
+
+    if df.empty:
+        raise ValueError(
+            "No valid bearing-condition labels were found."
+        )
+
+    return df
+
+
+# ============================================================
+# IDENTIFY LATEST OBSERVATION
+# ============================================================
+
+def get_latest_observation(df):
+    """
+    Identify the latest timestamp in the NASA IMS dataset.
+
+    If multiple observations share the latest timestamp,
+    their health scores are averaged.
+
+    The original condition label is preserved when all
+    observations at that timestamp agree.
+    """
+
+    df = df.copy()
+
+    # NASA IMS filenames normally use:
+    # YYYY.MM.DD.HH.MM.SS
+
+    df["timestamp"] = pd.to_datetime(
+        df["file_name"].astype(str),
+        format="%Y.%m.%d.%H.%M.%S",
+        errors="coerce",
+    )
+
+    valid_df = df.dropna(
+        subset=["timestamp"]
+    ).copy()
+
+    if valid_df.empty:
+        raise ValueError(
+            "Could not identify valid timestamps in "
+            "the NASA IMS dataset."
+        )
+
+    latest_timestamp = valid_df["timestamp"].max()
+
+    latest_rows = valid_df[
+        valid_df["timestamp"] == latest_timestamp
+    ].copy()
+
+    if latest_rows.empty:
+        raise ValueError(
+            "No observations were found for the latest timestamp."
+        )
+
+    # Average health scores if several channels or observations
+    # exist for the latest timestamp.
+    health_score = float(
+        latest_rows["health_score"].mean()
+    )
+
+    health_score = float(
+        np.clip(health_score, 0.0, 100.0)
+    )
+
+    # Preserve the condition generated by the existing
+    # nasa_health_index.py pipeline whenever the labels agree.
+    conditions = (
+        latest_rows["condition"]
+        .astype(str)
+        .str.strip()
+    )
+
+    unique_conditions = conditions.unique()
+
+    if len(unique_conditions) == 1:
+
+        condition = str(unique_conditions[0])
+
+    else:
+        # Conflicting labels for the same timestamp should
+        # not be resolved by arbitrarily choosing one channel.
+        # Use the health-index degradation thresholds instead.
+        degradation_score = 100.0 - health_score
+
+        if degradation_score < 25:
+            condition = "Healthy"
+
+        elif degradation_score < 50:
+            condition = "Monitoring"
+
+        elif degradation_score < 75:
+            condition = "Degrading"
+
+        else:
+            condition = "Critical"
+
+    # Capture available channel identifiers.
+    channels = []
+
+    if "channel" in latest_rows.columns:
+
+        channel_values = pd.to_numeric(
+            latest_rows["channel"],
+            errors="coerce",
+        ).dropna()
+
+        channels = sorted(
+            channel_values.astype(int).unique().tolist()
+        )
+
+    # Count the observations contributing to the result.
+    observation_count = len(latest_rows)
+
+    return {
+        "timestamp": latest_timestamp,
+        "health_score": round(health_score, 2),
+        "risk_score": round(100.0 - health_score, 2),
+        "condition": condition,
+        "channels": channels,
+        "observation_count": observation_count,
+    }
+
+
+# ============================================================
+# MAINTENANCE RECOMMENDATION
+# ============================================================
+
+def generate_bearing_recommendation(condition):
+    """
+    Generate a recommendation from the existing
+    NASA IMS health-index condition.
+    """
+
+    normalized_condition = str(
+        condition
+    ).strip().lower()
+
+    if normalized_condition == "critical":
+
+        return (
+            "Inspect the bearing immediately and assess "
+            "whether maintenance or replacement is required."
+        )
+
+    elif normalized_condition == "degrading":
+
+        return (
+            "Schedule bearing inspection and monitor "
+            "vibration indicators closely."
+        )
+
+    elif normalized_condition == "monitoring":
+
+        return (
+            "Increase bearing-health monitoring and "
+            "schedule an inspection if degradation continues."
+        )
+
+    elif normalized_condition == "healthy":
+
+        return (
+            "Continue monitoring bearing health and follow "
+            "the preventive maintenance schedule."
+        )
+
+    else:
+
+        return (
+            "Review the bearing condition and arrange an "
+            "inspection if abnormal vibration is observed."
+        )
+
+
+# ============================================================
+# MAIN BEARING PREDICTION FUNCTION
+# ============================================================
+
+def predict_latest_bearing():
+    """
+    Read the latest NASA IMS health-index observation.
+
+    Returns fields expected by the main AI decision engine.
+
+    Important integration fields:
+        failure_risk
+        health_score
+        condition
+    """
+
+    # Load existing processed data.
+    df = load_bearing_data()
+
+    # Identify the latest observation.
+    latest = get_latest_observation(df)
+
+    health_score = latest["health_score"]
+
+    # This is a health-index-derived risk indicator.
+    # It is not a calibrated failure probability.
+    failure_risk = round(
+        100.0 - health_score,
+        2,
+    )
+
+    condition = latest["condition"]
+
+    recommendation = generate_bearing_recommendation(
+        condition
+    )
+
+    # Keep both failure_risk and risk_score for compatibility
+    # with existing code that may use either key.
+    result = {
+        "machine_type": "bearing",
+
+        # Required by ml/ai_decision.py
+        "failure_risk": failure_risk,
+        "health_score": health_score,
+        "condition": condition,
+
+        # Compatibility and reporting fields
+        "risk_score": failure_risk,
+        "recommendation": recommendation,
+
+        # Dataset and processing information
+        "method": "NASA IMS health-index analysis",
+        "source_file": str(FEATURE_FILE),
+        "latest_timestamp": str(latest["timestamp"]),
+        "channels_analyzed": latest["channels"],
+        "observation_count": latest["observation_count"],
+
+        # Clarifies how to interpret the result
+        "risk_interpretation": (
+            "Health-index-derived indicator; "
+            "not a calibrated probability of failure."
+        ),
+    }
+
+    return result
+
+
+# ============================================================
+# STANDALONE TEST
+# ============================================================
+
+if __name__ == "__main__":
+
+    print("=" * 65)
+    print("AI MAINTENANCE OPTIMIZER")
+    print("NASA IMS BEARING CONDITION ANALYSIS")
+    print("=" * 65)
+
+    try:
+
+        result = predict_latest_bearing()
+
+        print()
+
+        for key, value in result.items():
+            print(f"{key}: {value}")
+
+        print()
+        print("Bearing analysis completed successfully.")
+
+    except Exception as error:
+
+        print()
+        print("BEARING ANALYSIS FAILED")
+        print("-" * 65)
+        print(f"Error: {error}")
+
+        raise SystemExit(1)
+
+    print("=" * 65)
