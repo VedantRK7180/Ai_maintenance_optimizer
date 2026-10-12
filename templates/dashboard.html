@@ -30,6 +30,24 @@
     {% if db_error %}
       <div class="notice warning"><strong>Data connection:</strong> {{ db_error }}</div>
     {% endif %}
+    {% if prediction_error %}
+      <div class="notice warning"><strong>AI prediction:</strong> {{ prediction_error }}</div>
+    {% endif %}
+    {% if prediction %}
+      <section class="panel">
+        <div class="panel-heading">
+          <div><h2>Latest AI assessment · {{ prediction.machine_name }}</h2><p class="muted">Uses the repository's trained Random Forest model and latest available sensor values.</p></div>
+          <span class="count-pill">{{ prediction.condition }}</span>
+        </div>
+        <div class="sensor-grid">
+          <div><span>Temperature</span><strong>{{ '%.2f'|format(prediction.temperature) }} °C</strong></div>
+          <div><span>Rotational speed</span><strong>{{ '%.0f'|format(prediction.rpm) }} RPM</strong></div>
+          <div><span>Torque</span><strong>{{ '%.2f'|format(prediction.torque) }} Nm</strong></div>
+          <div><span>Tool wear</span><strong>{{ '%.2f'|format(prediction.tool_wear) }} min</strong></div>
+        </div>
+        <p class="risk-disclaimer">Prototype estimate only. Validate sensor units and model calibration before using this value for real maintenance decisions.</p>
+      </section>
+    {% endif %}
 
     <section class="stat-grid">
       <article class="stat-card">
@@ -41,6 +59,16 @@
         <span class="stat-label">Recent sensor readings</span>
         <strong class="stat-value">{{ readings|length }}</strong>
         <span class="stat-foot">Latest 100 readings</span>
+      </article>
+      <article class="stat-card">
+        <span class="stat-label">CNC-102 failure risk</span>
+        {% if prediction %}
+          <strong class="stat-value {{ 'status-warn' if prediction.risk >= 50 else 'status-good' }}">{{ prediction.risk }}%</strong>
+          <span class="stat-foot">{{ prediction.condition }} · latest sensor reading</span>
+        {% else %}
+          <strong class="stat-value status-warn">—</strong>
+          <span class="stat-foot">Prediction unavailable</span>
+        {% endif %}
       </article>
       <article class="stat-card">
         <span class="stat-label">ML model file</span>
