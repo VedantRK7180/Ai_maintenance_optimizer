@@ -24,6 +24,10 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
+# Local application data
+instance/
+*.db
+
 # Local database backups
 *.sql.gz
 *.dump
