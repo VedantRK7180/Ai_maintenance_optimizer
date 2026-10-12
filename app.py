@@ -106,6 +106,78 @@ def fetch_machine_summary():
         connection.close()
 
 
+def predict_machine_risk(machine_name="CNC-102"):
+    """Run the existing Random Forest model against the latest available sensor reading."""
+    if not MODEL_PATH.exists():
+        return None, "Model file ml/cnc_model_baseline.joblib is missing."
+    connection, error = get_mysql_connection()
+    if connection is None:
+        return None, error
+    try:
+        import joblib
+        import pandas as pd
+
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT sm.sensor_name, sm.sensor_value
+            FROM MACHINE m
+            JOIN SENSOR_READING sr ON m.machine_id = sr.machine_id
+            JOIN SENSOR_MEASUREMENT sm ON sr.reading_id = sm.reading_id
+            WHERE m.machine_name = %s
+              AND sr.reading_id = (
+                  SELECT MAX(sr2.reading_id)
+                  FROM SENSOR_READING sr2
+                  WHERE sr2.machine_id = m.machine_id
+              )
+            ORDER BY sm.sensor_name
+        """, (machine_name,))
+        rows = cursor.fetchall()
+        cursor.close()
+        if not rows:
+            return None, f"No sensor readings found for {machine_name}."
+
+        sensor_data = {row["sensor_name"]: float(row["sensor_value"]) for row in rows}
+        required = ("Temperature", "RPM", "Torque", "Tool Wear")
+        missing = [name for name in required if name not in sensor_data]
+        if missing:
+            return None, "Latest reading is missing model inputs: " + ", ".join(missing)
+
+        package = joblib.load(MODEL_PATH)
+        model = package["model"]
+        model_features = package["features"]
+        air_temperature = sensor_data["Temperature"] + 273.15
+        input_data = pd.DataFrame([{
+            "Type": "M",
+            "Air temperature [K]": air_temperature,
+            "Process temperature [K]": air_temperature + 10.0,
+            "Rotational speed [rpm]": sensor_data["RPM"],
+            "Torque [Nm]": sensor_data["Torque"],
+            "Tool wear [min]": sensor_data["Tool Wear"],
+        }])
+        input_data = pd.get_dummies(input_data, columns=["Type"], dtype=int)
+        for column in model_features:
+            if column not in input_data.columns:
+                input_data[column] = 0
+        input_data = input_data[model_features]
+        prediction = int(model.predict(input_data)[0])
+        probabilities = model.predict_proba(input_data)[0]
+        classes = list(model.classes_)
+        risk_index = classes.index(1) if 1 in classes else len(probabilities) - 1
+        return {
+            "machine_name": machine_name,
+            "condition": "FAILURE RISK" if prediction == 1 else "NORMAL",
+            "risk": round(float(probabilities[risk_index]) * 100, 2),
+            "temperature": sensor_data["Temperature"],
+            "rpm": sensor_data["RPM"],
+            "torque": sensor_data["Torque"],
+            "tool_wear": sensor_data["Tool Wear"],
+        }, None
+    except Exception as exc:
+        return None, f"Prediction could not be calculated: {exc}"
+    finally:
+        connection.close()
+
+
 @app.context_processor
 def inject_globals():
     return {"current_year": datetime.now().year}
@@ -144,11 +216,14 @@ def login():
 @login_required
 def dashboard():
     machines, readings, db_error = fetch_machine_summary()
+    prediction, prediction_error = predict_machine_risk()
     return render_template(
         "dashboard.html",
         machines=machines,
         readings=readings,
         db_error=db_error,
+        prediction=prediction,
+        prediction_error=prediction_error,
         model_available=MODEL_PATH.exists(),
     )
 
