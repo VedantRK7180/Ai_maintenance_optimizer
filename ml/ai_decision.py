@@ -194,11 +194,13 @@ def get_latest_sensor_data(
     JOIN SENSOR_MEASUREMENT sm
         ON sr.reading_id = sm.reading_id
     WHERE sr.machine_id = %s
-    AND sr.recorded_at = (
-        SELECT MAX(recorded_at)
-        FROM SENSOR_READING
-        WHERE machine_id = %s
-    )
+      AND sr.reading_id = (
+          SELECT sr2.reading_id
+          FROM SENSOR_READING sr2
+          WHERE sr2.machine_id = %s
+          ORDER BY sr2.recorded_at DESC, sr2.reading_id DESC
+          LIMIT 1
+      )
     ORDER BY sm.sensor_name;
     """
 
