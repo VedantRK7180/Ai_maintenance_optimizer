@@ -3,6 +3,7 @@ import sys
 import joblib
 import mysql.connector
 import pandas as pd
+from dotenv import load_dotenv
 
 from pymongo import MongoClient
 from datetime import datetime, timezone
@@ -26,6 +27,8 @@ ML_DIR = os.path.join(
 if ML_DIR not in sys.path:
     sys.path.append(ML_DIR)
 
+load_dotenv(os.path.join(BASE_DIR, ".env"))
+
 
 # ============================================================
 # IMPORT PROJECT AI MODULES
@@ -33,6 +36,7 @@ if ML_DIR not in sys.path:
 
 from fuzzy_logic import calculate_urgency
 from bearing_model import predict_latest_bearing
+from model_utils import predict_failure_probability
 
 
 # ============================================================
@@ -40,10 +44,12 @@ from bearing_model import predict_latest_bearing
 # ============================================================
 
 DB_CONFIG = {
-    "host": "localhost",
-    "user": "root",
-    "password": "#123Vrk7",
-    "database": "AI_Maintenance_DB"
+    "host": os.getenv("MYSQL_HOST", "127.0.0.1"),
+    "port": int(os.getenv("MYSQL_PORT", "3306")),
+    "user": os.getenv("MYSQL_USER", ""),
+    "password": os.getenv("MYSQL_PASSWORD", ""),
+    "database": os.getenv("MYSQL_DATABASE", "AI_Maintenance_DB"),
+    "connection_timeout": int(os.getenv("MYSQL_CONNECT_TIMEOUT", "5")),
 }
 
 
@@ -51,11 +57,11 @@ DB_CONFIG = {
 # MONGODB CONFIGURATION
 # ============================================================
 
-MONGO_URI = "mongodb://localhost:27017"
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 
-MONGO_DATABASE = "AI_Maintenance_Mongo"
+MONGO_DATABASE = os.getenv("MONGO_DATABASE", "AI_Maintenance_Mongo")
 
-MONGO_COLLECTION = "AI_Event_Log"
+MONGO_COLLECTION = os.getenv("MONGO_COLLECTION", "AI_Event_Log")
 
 
 # ============================================================
@@ -64,9 +70,11 @@ MONGO_COLLECTION = "AI_Event_Log"
 
 def connect_database():
 
-    return mysql.connector.connect(
-        **DB_CONFIG
-    )
+    if not DB_CONFIG["user"] or not DB_CONFIG["password"]:
+        raise RuntimeError(
+            "Set MYSQL_USER and MYSQL_PASSWORD in your .env file before running the AI decision engine."
+        )
+    return mysql.connector.connect(**DB_CONFIG)
 
 
 # ============================================================
@@ -547,35 +555,10 @@ def predict_cnc(
 
     # --------------------------------------------------------
     # FAILURE PROBABILITY
-    # --------------------------------------------------------
 
-    if hasattr(
-        model,
-        "predict_proba"
-    ):
-
-        probabilities = model.predict_proba(X)[0]
-
-        if len(probabilities) == 2:
-
-            failure_risk = float(
-                probabilities[1]
-            )
-
-        else:
-
-            failure_risk = float(
-                prediction
-            )
-
-    else:
-
-        failure_risk = float(
-            prediction
-        )
+    failure_risk = predict_failure_probability(model, X)
 
 
-    # --------------------------------------------------------
     # HEALTH SCORE
     # --------------------------------------------------------
 
