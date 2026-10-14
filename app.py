@@ -54,25 +54,30 @@ def login_required(view):
 
 
 def get_mysql_connection():
-    """Connect to the existing sensor database; return None if it is not configured."""
-    required = ("MYSQL_HOST", "MYSQL_USER", "MYSQL_PASSWORD", "MYSQL_DATABASE")
-    if not all(os.getenv(key) for key in required):
-        return None, "MySQL is not configured yet. Add the database settings to your .env file."
+    """Connect to the existing sensor database; support both MYSQL_* and DB_* env names."""
+    host = os.getenv("MYSQL_HOST", os.getenv("DB_HOST"))
+    user = os.getenv("MYSQL_USER", os.getenv("DB_USER"))
+    password = os.getenv("MYSQL_PASSWORD", os.getenv("DB_PASSWORD"))
+    database = os.getenv("MYSQL_DATABASE", os.getenv("DB_NAME"))
+    port = os.getenv("MYSQL_PORT", "3306")
+
+    if not all((host, user, password, database)):
+        return None, "MySQL is not configured yet. Set host, user, password and database in your local .env file."
+
     try:
         import mysql.connector
         connection = mysql.connector.connect(
-            host=os.getenv("MYSQL_HOST"),
-            port=int(os.getenv("MYSQL_PORT", "3306")),
-            user=os.getenv("MYSQL_USER"),
-            password=os.getenv("MYSQL_PASSWORD"),
-            database=os.getenv("MYSQL_DATABASE"),
+            host=host,
+            port=int(port),
+            user=user,
+            password=password,
+            database=database,
             connection_timeout=5,
         )
         return connection, None
     except Exception as exc:
         # Keep the dashboard usable while the local database is offline.
         return None, f"Could not connect to MySQL: {exc}"
-
 
 def fetch_machine_summary():
     connection, error = get_mysql_connection()
