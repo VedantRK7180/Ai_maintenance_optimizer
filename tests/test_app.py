@@ -174,3 +174,21 @@ def test_simulator_rejects_out_of_range_scenario_values(client, monkeypatch):
     response = client.get("/simulator?machine=CNC-101&rpm=-5")
     assert response.status_code == 200
     assert b"must be a finite value" in response.data
+
+
+
+def test_simulator_handles_invalid_latest_sensor_values_without_server_error(client, monkeypatch):
+    create_user()
+    decisions = [{"machine_name": "CNC-101", "failure_risk": 40, "health_score": 70}]
+    monkeypatch.setattr(dashboard_app, "fetch_machine_summary", lambda: ([], [], decisions, None))
+    monkeypatch.setattr(
+        dashboard_app,
+        "fetch_latest_cnc_sensor_values",
+        lambda name: ({"Temperature": None, "RPM": "not-a-number", "Torque": 40, "Tool Wear": 100}, None),
+    )
+    monkeypatch.setattr("ml.cnc_what_if.predict_cnc_risk", lambda values: 40.0)
+    client.post("/login", data={"username": "manager", "password": "correct-horse-battery-staple"})
+    response = client.get("/simulator?machine=CNC-101")
+    assert response.status_code == 200
+    assert b"latest sensor reading contains invalid values" in response.data
+    assert b"40.00%" not in response.data
