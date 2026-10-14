@@ -125,58 +125,50 @@ def test_simulator_requires_login(client):
     assert "/login" in response.headers["Location"]
 
 
-def test_simulator_calculates_bounded_hypothetical_scores(client, monkeypatch):
+def test_simulator_runs_model_for_current_and_scenario_sensor_values(client, monkeypatch):
     create_user()
-    decisions = [
-        {
-            "machine_name": "CNC-103",
-            "urgency_score": 72.0,
-            "failure_risk": 81.0,
-            "health_score": 19.0,
-            "urgency_level": "HIGH",
-            "recommendation": "Inspect immediately",
-            "decision_time": "2026-01-01 11:00:00",
-            "model_key": "test",
-        }
-    ]
-    monkeypatch.setattr(
-        dashboard_app,
-        "fetch_machine_summary",
-        lambda: ([], [], decisions, None),
-    )
-    client.post(
-        "/login",
-        data={"username": "manager", "password": "correct-horse-battery-staple"},
-    )
-    response = client.get("/simulator?machine=CNC-103&risk_reduction=20&health_gain=15")
+    decisions = [{
+        "machine_name": "CNC-103",
+        "urgency_score": 72.0,
+        "failure_risk": 81.0,
+        "health_score": 19.0,
+        "urgency_level": "HIGH",
+        "recommendation": "Inspect immediately",
+        "decision_time": "2026-01-01 11:00:00",
+        "model_key": "test",
+    }]
+    monkeypatch.setattr(dashboard_app, "fetch_machine_summary", lambda: ([], [], decisions, None))
+    current = {"Temperature": 50, "RPM": 1500, "Torque": 40, "Tool Wear": 100}
+    monkeypatch.setattr(dashboard_app, "fetch_latest_cnc_sensor_values", lambda name: (current, None))
+    calls = []
+    def fake_predict(values):
+        calls.append(values.copy())
+        return 30.0 if len(calls) == 1 else 22.5
+    monkeypatch.setattr("ml.cnc_what_if.predict_cnc_risk", fake_predict)
+    client.post("/login", data={"username": "manager", "password": "correct-horse-battery-staple"})
+    response = client.get("/simulator?machine=CNC-103&temperature=45&rpm=1600")
     assert response.status_code == 200
     assert b"Maintenance What-If Simulator" in response.data
-    assert b"61.00%" in response.data
-    assert b"34.00%" in response.data
+    assert b"30.00%" in response.data
+    assert b"22.50%" in response.data
+    assert calls[1]["Temperature"] == 45
+    assert calls[1]["RPM"] == 1600
+    assert calls[1]["Torque"] == 40
+    assert calls[1]["Tool Wear"] == 100
     assert b"not written back" in response.data
 
 
-def test_simulator_clamps_user_supplied_adjustments(client, monkeypatch):
+def test_simulator_rejects_out_of_range_scenario_values(client, monkeypatch):
     create_user()
-    decisions = [
-        {
-            "machine_name": "CNC-101",
-            "failure_risk": 40.0,
-            "health_score": 70.0,
-            "urgency_score": 45.0,
-            "urgency_level": "MEDIUM",
-        }
-    ]
+    decisions = [{"machine_name": "CNC-101", "failure_risk": 40, "health_score": 70}]
+    monkeypatch.setattr(dashboard_app, "fetch_machine_summary", lambda: ([], [], decisions, None))
     monkeypatch.setattr(
         dashboard_app,
-        "fetch_machine_summary",
-        lambda: ([], [], decisions, None),
+        "fetch_latest_cnc_sensor_values",
+        lambda name: ({"Temperature": 50, "RPM": 1500, "Torque": 40, "Tool Wear": 100}, None),
     )
-    client.post(
-        "/login",
-        data={"username": "manager", "password": "correct-horse-battery-staple"},
-    )
-    response = client.get("/simulator?machine=CNC-101&risk_reduction=999&health_gain=-30")
+    monkeypatch.setattr("ml.cnc_what_if.predict_cnc_risk", lambda values: 40.0)
+    client.post("/login", data={"username": "manager", "password": "correct-horse-battery-staple"})
+    response = client.get("/simulator?machine=CNC-101&rpm=-5")
     assert response.status_code == 200
-    assert b"0.00%" in response.data
-    assert b"70.00%" in response.data
+    assert b"must be a finite value" in response.data
