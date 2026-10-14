@@ -4,8 +4,11 @@ import joblib
 import mysql.connector
 import pandas as pd
 
+from dotenv import load_dotenv
 from pymongo import MongoClient
 from datetime import datetime, timezone
+
+load_dotenv()
 
 
 # ============================================================
@@ -40,11 +43,17 @@ from bearing_model import predict_latest_bearing
 # ============================================================
 
 DB_CONFIG = {
-    "host": "localhost",
-    "user": "root",
-    "password": "#123Vrk7",
-    "database": "AI_Maintenance_DB"
+    "host": os.getenv("MYSQL_HOST", os.getenv("DB_HOST", "localhost")),
+    "port": int(os.getenv("MYSQL_PORT", "3306")),
+    "user": os.getenv("MYSQL_USER", os.getenv("DB_USER", "root")),
+    "password": os.getenv("MYSQL_PASSWORD", os.getenv("DB_PASSWORD", "")),
+    "database": os.getenv("MYSQL_DATABASE", os.getenv("DB_NAME", "AI_Maintenance_DB")),
 }
+
+if not DB_CONFIG["password"]:
+    raise RuntimeError(
+        "MySQL password is missing. Set MYSQL_PASSWORD (or DB_PASSWORD) in your local .env file."
+    )
 
 
 # ============================================================
