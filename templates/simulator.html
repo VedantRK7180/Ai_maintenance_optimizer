@@ -60,7 +60,7 @@
       {% endif %}
     </section>
 
-    {% if selected %}
+    {% if selected and simulated_risk is not none %}
     <section class="stat-grid">
       <article class="stat-card"><span class="stat-label">Baseline risk score</span><strong class="stat-value">{{ '%.2f'|format(baseline_risk) }}%</strong><span class="stat-foot">Model on current sensor values</span></article>
       <article class="stat-card"><span class="stat-label">Scenario risk score</span><strong class="stat-value">{{ '%.2f'|format(simulated_risk) }}%</strong><span class="stat-foot">Model on scenario sensor values</span></article>
