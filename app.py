@@ -268,6 +268,57 @@ def dashboard():
     )
 
 
+@app.route("/planner")
+@login_required
+def planner():
+    """Provide a read-only maintenance priority queue from saved AI decisions."""
+    machines, readings, decisions, db_error = fetch_machine_summary()
+    priorities = []
+    for decision in decisions:
+        try:
+            urgency = float(decision.get("urgency_score") or 0)
+        except (TypeError, ValueError):
+            urgency = 0.0
+        try:
+            risk = float(decision.get("failure_risk") or 0)
+        except (TypeError, ValueError):
+            risk = 0.0
+
+        level = str(decision.get("urgency_level") or "").strip().upper()
+        if level in {"CRITICAL", "HIGH"} or urgency >= 65 or risk >= 75:
+            window = "Immediate review"
+            priority = "High"
+        elif level == "MEDIUM" or urgency >= 40 or risk >= 40:
+            window = "Review soon"
+            priority = "Medium"
+        else:
+            window = "Routine monitoring"
+            priority = "Routine"
+
+        priorities.append({
+            **decision,
+            "priority": priority,
+            "suggested_window": window,
+            "urgency_numeric": urgency,
+            "risk_numeric": risk,
+        })
+
+    priorities.sort(
+        key=lambda item: (
+            {"High": 0, "Medium": 1, "Routine": 2}.get(item["priority"], 3),
+            -item["urgency_numeric"],
+            -item["risk_numeric"],
+        )
+    )
+    return render_template(
+        "planner.html",
+        priorities=priorities,
+        db_error=db_error,
+        machine_count=len(machines),
+        reading_count=len(readings),
+    )
+
+
 @app.route("/logout", methods=["POST"])
 @login_required
 def logout():
