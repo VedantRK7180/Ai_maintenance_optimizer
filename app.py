@@ -8,6 +8,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 from flask import Flask, flash, redirect, render_template, request, session, url_for
 from flask_wtf.csrf import CSRFProtect
+
+from ml.model_utils import predict_failure_probability
 from werkzeug.security import check_password_hash
 
 load_dotenv()
@@ -199,13 +201,11 @@ def predict_machine_risk(machine_name="CNC-102"):
                 input_data[column] = 0
         input_data = input_data[model_features]
         prediction = int(model.predict(input_data)[0])
-        probabilities = model.predict_proba(input_data)[0]
-        classes = list(model.classes_)
-        risk_index = classes.index(1) if 1 in classes else len(probabilities) - 1
+        risk = predict_failure_probability(model, input_data)
         return {
             "machine_name": machine_name,
             "condition": "FAILURE RISK" if prediction == 1 else "NORMAL",
-            "risk": round(float(probabilities[risk_index]) * 100, 2),
+            "risk": round(risk * 100, 2),
             "temperature": sensor_data["Temperature"],
             "rpm": sensor_data["RPM"],
             "torque": sensor_data["Torque"],
