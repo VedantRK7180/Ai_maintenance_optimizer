@@ -192,3 +192,42 @@ def test_simulator_handles_invalid_latest_sensor_values_without_server_error(cli
     assert response.status_code == 200
     assert b"latest sensor reading contains invalid values" in response.data
     assert b"40.00%" not in response.data
+
+
+def test_prediction_errors_do_not_expose_internal_exception_text(client, monkeypatch, caplog):
+    class FakeCursor:
+        def execute(self, query, params):
+            self.params = params
+
+        def fetchall(self):
+            return [
+                {"sensor_name": "Temperature", "sensor_value": 50},
+                {"sensor_name": "RPM", "sensor_value": 1500},
+                {"sensor_name": "Torque", "sensor_value": 40},
+                {"sensor_name": "Tool Wear", "sensor_value": 100},
+            ]
+
+        def close(self):
+            pass
+
+    class FakeConnection:
+        def cursor(self, dictionary=False):
+            return FakeCursor()
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(dashboard_app.MODEL_PATH, "exists", lambda: True)
+    monkeypatch.setattr(dashboard_app, "get_mysql_connection", lambda: (FakeConnection(), None))
+    monkeypatch.setattr(
+        "joblib.load",
+        lambda path: (_ for _ in ()).throw(RuntimeError("private model path and internal details")),
+    )
+
+    prediction, error = dashboard_app.predict_machine_risk("CNC-101")
+
+    assert prediction is None
+    assert error == "Prediction could not be calculated. Check the model, sensor data, and server logs."
+    assert "private model path and internal details" not in error
+    assert "Machine risk prediction failed" in caplog.text
+
