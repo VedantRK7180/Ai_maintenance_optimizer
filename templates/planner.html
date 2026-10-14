@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Maintenance Planner · Maintenance Optimizer</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('dashboard') }}"><span class="brand-mark small">MO</span> Maintenance Optimizer</a>
+    <div class="topbar-right">
+      <a class="ghost-button" href="{{ url_for('dashboard') }}">Dashboard</a>
+      <span class="user-chip">{{ session.get('username', 'Manager') }} <span class="role-dot"></span></span>
+      <form method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="ghost-button" type="submit">Log out</button>
+      </form>
+    </div>
+  </header>
+  <main class="page-wrap">
+    <section class="welcome-row">
+      <div>
+        <p class="eyebrow">PLANNING WORKSPACE</p>
+        <h1>Maintenance priority planner</h1>
+        <p class="muted">A suggested review queue based on the latest saved AI decisions.</p>
+      </div>
+      <span class="live-pill"><span></span> Read-only recommendations</span>
+    </section>
+
+    <div class="notice warning">
+      <strong>Planning guidance only:</strong> this page ranks existing AI decisions. It does not book a maintenance slot, assign a technician, reserve spare parts, or write to your maintenance tables. Confirm every action with your maintenance team.
+    </div>
+
+    {% if db_error %}
+      <div class="notice warning"><strong>Data connection:</strong> {{ db_error }}</div>
+    {% endif %}
+
+    <section class="stat-grid">
+      <article class="stat-card"><span class="stat-label">Machines loaded</span><strong class="stat-value">{{ machine_count }}</strong><span class="stat-foot">From MySQL</span></article>
+      <article class="stat-card"><span class="stat-label">Recent sensor rows</span><strong class="stat-value">{{ reading_count }}</strong><span class="stat-foot">Latest readings query</span></article>
+      <article class="stat-card"><span class="stat-label">Decisions in queue</span><strong class="stat-value">{{ priorities|length }}</strong><span class="stat-foot">Saved AI decisions only</span></article>
+      <article class="stat-card"><span class="stat-label">High-priority reviews</span><strong class="stat-value status-warn">{{ priorities|selectattr('priority', 'equalto', 'High')|list|length }}</strong><span class="stat-foot">Requires human confirmation</span></article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div><h2>Suggested review order</h2><p class="muted">Sorted by suggested priority, urgency score, and failure-risk score.</p></div>
+        <span class="count-pill">{{ priorities|length }} items</span>
+      </div>
+      {% if priorities %}
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Priority</th><th>Machine</th><th>Suggested window</th><th>Urgency</th><th>Failure risk</th><th>Health</th><th>AI recommendation</th></tr></thead>
+            <tbody>
+              {% for item in priorities %}
+                <tr>
+                  <td><span class="count-pill">{{ item.priority }}</span></td>
+                  <td>{{ item.machine_name or '—' }}</td>
+                  <td>{{ item.suggested_window }}</td>
+                  <td>{{ '%.2f'|format(item.urgency_numeric) }}</td>
+                  <td>{{ '%.2f'|format(item.risk_numeric) }}%</td>
+                  <td>{{ '%.2f'|format(item.health_score|float) if item.health_score is not none else '—' }}%</td>
+                  <td>{{ item.recommendation or 'Review machine condition' }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty-state"><div class="empty-icon">MP</div><h3>No AI decisions available</h3><p>Check the MySQL connection and confirm that the AI decision engine has saved records to AI_DECISION.</p></div>
+      {% endif %}
+    </section>
+    <p class="footer-note">AI Maintenance Optimizer · {{ current_year }} · This queue is advisory and does not schedule work automatically.</p>
+  </main>
+</body>
+</html>
