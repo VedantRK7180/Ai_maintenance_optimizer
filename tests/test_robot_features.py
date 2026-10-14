@@ -41,3 +41,18 @@ def test_history_is_limited_to_latest_ten_readings():
     history = [reading(i, i * 10, i * 100) for i in range(1, 12)]
     row = build_robot_feature_row(reading(11, 110, 1100), history)
     assert row["position_rolling_mean"] == pytest.approx(6.5)
+
+
+def test_non_finite_current_sensor_values_are_rejected():
+    with pytest.raises(ValueError, match="finite numeric"):
+        build_robot_feature_row(reading(float("nan"), 30, 220))
+
+
+def test_invalid_historical_reading_is_ignored():
+    history = [
+        reading(1, 10, 100),
+        reading(float("inf"), 20, 200),
+        reading(3, 30, 300),
+    ]
+    row = build_robot_feature_row(reading(3, 30, 300), history)
+    assert row["position_rolling_mean"] == pytest.approx(2.0)
