@@ -319,6 +319,62 @@ def planner():
     )
 
 
+@app.route("/simulator", methods=["GET", "POST"])
+@login_required
+def simulator():
+    """Explore hypothetical risk/health adjustments without writing to any database."""
+    machines, readings, decisions, db_error = fetch_machine_summary()
+    selected_name = request.values.get("machine", "").strip()
+    selected = next(
+        (item for item in decisions if item.get("machine_name") == selected_name),
+        None,
+    )
+    if selected is None and decisions:
+        selected = decisions[0]
+    selected_name = selected.get("machine_name", "") if selected else selected_name
+
+    try:
+        risk_reduction = float(request.values.get("risk_reduction", "15"))
+    except (TypeError, ValueError):
+        risk_reduction = 15.0
+    try:
+        health_gain = float(request.values.get("health_gain", "10"))
+    except (TypeError, ValueError):
+        health_gain = 10.0
+
+    risk_reduction = min(100.0, max(0.0, risk_reduction))
+    health_gain = min(100.0, max(0.0, health_gain))
+    baseline_risk = None
+    baseline_health = None
+    simulated_risk = None
+    simulated_health = None
+    if selected:
+        try:
+            baseline_risk = min(100.0, max(0.0, float(selected.get("failure_risk") or 0)))
+        except (TypeError, ValueError):
+            baseline_risk = 0.0
+        try:
+            baseline_health = min(100.0, max(0.0, float(selected.get("health_score") or 0)))
+        except (TypeError, ValueError):
+            baseline_health = 0.0
+        simulated_risk = round(max(0.0, baseline_risk - risk_reduction), 2)
+        simulated_health = round(min(100.0, baseline_health + health_gain), 2)
+
+    return render_template(
+        "simulator.html",
+        decisions=decisions,
+        selected=selected,
+        selected_name=selected_name,
+        db_error=db_error,
+        risk_reduction=risk_reduction,
+        health_gain=health_gain,
+        baseline_risk=baseline_risk,
+        baseline_health=baseline_health,
+        simulated_risk=simulated_risk,
+        simulated_health=simulated_health,
+    )
+
+
 @app.route("/logout", methods=["POST"])
 @login_required
 def logout():
