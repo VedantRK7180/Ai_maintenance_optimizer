@@ -57,11 +57,13 @@ Open http://127.0.0.1:5000 and sign in with the manager account.
 - Model-file status indicator for `ml/cnc_model_baseline.joblib`.
 - Random Forest risk estimate for the latest available CNC-102 sensor reading, using the same feature preparation approach as `ml/db_predict.py`.
 - A read-only maintenance priority planner based on the latest saved AI decisions per machine.
+- A What-If simulator for bounded, user-defined score adjustments; scenario values are illustrative and never saved to the database.
 - Optional MongoDB connection settings for the AI decision engine.
 
 ## Notes and limitations
 
 - The planner ranks existing saved AI decisions into suggested review windows. It does not create maintenance records, book calendar slots, assign technicians, reserve spare parts, or write to maintenance tables. Those operations must be added only after the exact local schema is verified.
+- The What-If simulator subtracts a user-entered number from the saved risk score and adds a user-entered number to the saved health score, clamping values to 0–100. This is arithmetic scenario exploration, not a model prediction or validated estimate of treatment effect.
 - The CNC-102 risk estimate depends on the model file, the four expected sensor names, and the database schema being available. It is a model estimate, not a guarantee of failure.
 - The MySQL queries assume the table names and columns used by the existing ML script. If your database schema differs, adjust `fetch_machine_summary()` in `app.py`.
 - Keep `FLASK_DEBUG=false` outside local development. For deployment, use HTTPS and set `COOKIE_SECURE=true`.
