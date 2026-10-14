@@ -1,5 +1,7 @@
 """Pure feature construction helpers for robot sensor time-series inference."""
 
+import math
+
 import pandas as pd
 
 REQUIRED_SENSOR_NAMES = ("Position", "Temperature", "Voltage")
@@ -11,29 +13,46 @@ DEFAULT_FEATURES = [
 ]
 
 
+def _normalise_reading(reading):
+    """Return a complete finite sensor reading, or None if it is incomplete/invalid."""
+    if not all(reading.get(name) is not None for name in REQUIRED_SENSOR_NAMES):
+        return None
+
+    try:
+        values = {
+            "position": float(reading["Position"]),
+            "temperature": float(reading["Temperature"]),
+            "voltage": float(reading["Voltage"]),
+        }
+    except (TypeError, ValueError):
+        return None
+
+    if not all(math.isfinite(value) for value in values.values()):
+        return None
+    return values
+
+
 def build_robot_feature_row(sensor_data, sensor_history=None, feature_names=None):
     """Build model inputs from current values and up to 10 complete recent readings.
 
-    The input history must be oldest-first. Missing/incomplete sensor readings are
-    ignored; when history lacks the current reading, current values are appended.
+    History must be oldest-first. Incomplete, non-numeric, and non-finite historical
+    readings are ignored. The current reading must be complete and finite.
     """
-    missing = [name for name in REQUIRED_SENSOR_NAMES if sensor_data.get(name) is None]
-    if missing:
-        raise ValueError("Robot sensor data missing: " + ", ".join(missing))
+    current = _normalise_reading(sensor_data)
+    if current is None:
+        missing = [
+            name for name in REQUIRED_SENSOR_NAMES
+            if sensor_data.get(name) is None
+        ]
+        if missing:
+            raise ValueError("Robot sensor data missing or invalid: " + ", ".join(missing))
+        raise ValueError("Robot sensor data must contain finite numeric values.")
 
-    current = {
-        "position": float(sensor_data["Position"]),
-        "temperature": float(sensor_data["Temperature"]),
-        "voltage": float(sensor_data["Voltage"]),
-    }
     complete_history = []
     for reading in sensor_history or []:
-        if all(reading.get(name) is not None for name in REQUIRED_SENSOR_NAMES):
-            complete_history.append({
-                "position": float(reading["Position"]),
-                "temperature": float(reading["Temperature"]),
-                "voltage": float(reading["Voltage"]),
-            })
+        normalised = _normalise_reading(reading)
+        if normalised is not None:
+            complete_history.append(normalised)
 
     if not complete_history or complete_history[-1] != current:
         complete_history.append(current)
