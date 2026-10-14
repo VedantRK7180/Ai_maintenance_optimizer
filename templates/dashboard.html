@@ -79,6 +79,37 @@
 
     <section class="panel">
       <div class="panel-heading">
+        <div><h2>Latest AI maintenance decisions</h2><p class="muted">Most recent saved decision per machine, ordered by urgency and risk.</p></div>
+        <span class="count-pill">{{ decisions|length }} decisions</span>
+      </div>
+      {% if decisions %}
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Machine</th><th>Decision time</th><th>Failure risk</th><th>Health</th><th>Urgency</th><th>Level</th><th>Recommendation</th><th>Model</th></tr></thead>
+            <tbody>
+              {% for decision in decisions %}
+                <tr>
+                  <td>{{ decision.machine_name }}</td>
+                  <td>{{ decision.decision_time or '—' }}</td>
+                  <td>{{ '%.2f'|format(decision.failure_risk|float) if decision.failure_risk is not none else '—' }}%</td>
+                  <td>{{ '%.2f'|format(decision.health_score|float) if decision.health_score is not none else '—' }}%</td>
+                  <td>{{ '%.2f'|format(decision.urgency_score|float) if decision.urgency_score is not none else '—' }}</td>
+                  <td><span class="count-pill">{{ decision.urgency_level or '—' }}</span></td>
+                  <td>{{ decision.recommendation or '—' }}</td>
+                  <td>{{ decision.model_key or '—' }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p class="risk-disclaimer">Risk values are model outputs, not guaranteed failure probabilities. Verify recommendations with maintenance staff.</p>
+      {% else %}
+        <div class="empty-state compact"><h3>No saved AI decisions</h3><p>When the AI decision engine has saved records in AI_DECISION, the latest decisions will appear here.</p></div>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading">
         <div><h2>Registered machines</h2><p class="muted">Machines currently returned by your database.</p></div>
         <span class="count-pill">{{ machines|length }} total</span>
       </div>
