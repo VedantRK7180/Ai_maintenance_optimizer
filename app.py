@@ -78,9 +78,10 @@ def get_mysql_connection():
             connection_timeout=5,
         )
         return connection, None
-    except Exception as exc:
-        # Keep the dashboard usable while the local database is offline.
-        return None, f"Could not connect to MySQL: {exc}"
+    except Exception:
+        # Keep connection details in server logs, not in browser responses.
+        app.logger.exception("Could not connect to MySQL")
+        return None, "Could not connect to MySQL. Check the local database service and configuration."
 
 def fetch_machine_summary():
     """Read machine, sensor, and latest AI decision data without changing the schema."""
@@ -136,14 +137,16 @@ def fetch_machine_summary():
                 LIMIT 50
             """)
             decisions = cursor.fetchall()
-        except Exception as exc:
-            warnings.append(f"AI decisions are unavailable: {exc}")
+        except Exception:
+            app.logger.exception("Could not read AI decisions")
+            warnings.append("AI decisions are temporarily unavailable.")
 
         cursor.close()
         warning = "; ".join(warnings) if warnings else None
         return machines, readings, decisions, warning
-    except Exception as exc:
-        return [], [], [], f"Could not read the expected machine/sensor tables: {exc}"
+    except Exception:
+        app.logger.exception("Could not read machine and sensor tables")
+        return [], [], [], "Could not read the expected machine/sensor tables. Check the database schema and logs."
     finally:
         connection.close()
 
@@ -212,8 +215,9 @@ def predict_machine_risk(machine_name="CNC-102"):
             "torque": sensor_data["Torque"],
             "tool_wear": sensor_data["Tool Wear"],
         }, None
-    except Exception as exc:
-        return None, f"Prediction could not be calculated: {exc}"
+    except Exception:
+        app.logger.exception("Machine risk prediction failed")
+        return None, "Prediction could not be calculated. Check the model, sensor data, and server logs."
     finally:
         connection.close()
 
