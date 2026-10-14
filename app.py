@@ -394,7 +394,7 @@ def simulator():
                 for key, (sensor_name, label, minimum, maximum) in sensor_fields.items():
                     value = scenario_values[key]
                     if not math.isfinite(value) or value < minimum or value > maximum:
-                        raise ValueError(f"Latest {label.toLowerCase()} is outside the supported range.")
+                        raise ValueError(f"Latest {label.lower()} is outside the supported range.")
             except (TypeError, ValueError, OverflowError):
                 app.logger.warning("Latest CNC sensor values are missing, non-numeric, or outside supported bounds for %s", selected_name)
                 input_error = "The latest sensor reading contains invalid values. Check the machine data before simulating."
