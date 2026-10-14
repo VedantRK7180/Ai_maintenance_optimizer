@@ -1,7 +1,11 @@
+import os
+
+from dotenv import load_dotenv
 from pymongo import MongoClient
 
 
 def main():
+    load_dotenv()
     print("=" * 60)
     print("AI MAINTENANCE OPTIMIZER")
     print("MONGODB CONNECTION TEST")
@@ -9,19 +13,19 @@ def main():
 
     client = None
     try:
-        client = MongoClient(
-            "mongodb://localhost:27017/",
-            serverSelectionTimeoutMS=5000
-        )
+        uri = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
+        database_name = os.getenv("MONGO_DATABASE", "AI_Maintenance_Mongo")
+        collection_name = os.getenv("MONGO_COLLECTION", "AI_Event_Log")
+        client = MongoClient(uri, serverSelectionTimeoutMS=5000)
         client.admin.command("ping")
-        db = client["AI_Maintenance_Mongo"]
-        collection = db["AI_Event_Log"]
-        print("\\nSuccessfully connected to MongoDB!")
+        db = client[database_name]
+        collection = db[collection_name]
+        print("\nSuccessfully connected to MongoDB!")
         print("Database   :", db.name)
         print("Collection :", collection.name)
-        print("\\nMongoDB connection test successful.")
+        print("\nMongoDB connection test successful.")
     except Exception as error:
-        print("\\nMongoDB connection failed!")
+        print("\nMongoDB connection failed!")
         print("Error:", error)
     finally:
         if client is not None:
