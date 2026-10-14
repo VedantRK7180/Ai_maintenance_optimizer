@@ -35,6 +35,7 @@ if ML_DIR not in sys.path:
 # ============================================================
 
 from fuzzy_logic import calculate_urgency
+from model_utils import predict_failure_probability
 from bearing_model import predict_latest_bearing
 
 
@@ -558,30 +559,7 @@ def predict_cnc(
     # FAILURE PROBABILITY
     # --------------------------------------------------------
 
-    if hasattr(
-        model,
-        "predict_proba"
-    ):
-
-        probabilities = model.predict_proba(X)[0]
-
-        if len(probabilities) == 2:
-
-            failure_risk = float(
-                probabilities[1]
-            )
-
-        else:
-
-            failure_risk = float(
-                prediction
-            )
-
-    else:
-
-        failure_risk = float(
-            prediction
-        )
+    failure_risk = predict_failure_probability(model, X)
 
 
     # --------------------------------------------------------
@@ -757,30 +735,7 @@ def predict_robot(
     # FAILURE PROBABILITY
     # --------------------------------------------------------
 
-    if hasattr(
-        model,
-        "predict_proba"
-    ):
-
-        probabilities = model.predict_proba(X)[0]
-
-        if len(probabilities) == 2:
-
-            failure_risk = float(
-                probabilities[1]
-            )
-
-        else:
-
-            failure_risk = float(
-                prediction
-            )
-
-    else:
-
-        failure_risk = float(
-            prediction
-        )
+    failure_risk = predict_failure_probability(model, X)
 
 
     # --------------------------------------------------------
