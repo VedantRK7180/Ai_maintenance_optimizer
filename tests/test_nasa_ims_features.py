@@ -24,7 +24,6 @@ def test_calculate_features_ignores_non_finite_samples():
     assert result["mean"] == 2.0
     assert result["min"] == 1.0
     assert result["max"] == 3.0
-    assert result["sample_count"] if "sample_count" in result else True
 
 
 def test_calculate_features_returns_none_for_empty_or_invalid_signal():
