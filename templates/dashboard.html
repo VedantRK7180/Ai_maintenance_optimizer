@@ -10,6 +10,7 @@
   <header class="topbar">
     <a class="brand" href="{{ url_for('dashboard') }}"><span class="brand-mark small">MO</span> Maintenance Optimizer</a>
     <div class="topbar-right">
+      <a class="ghost-button" href="{{ url_for('planner') }}">Maintenance planner</a>
       <span class="user-chip">{{ session.get('username', 'Manager') }} <span class="role-dot"></span></span>
       <form method="post" action="{{ url_for('logout') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
