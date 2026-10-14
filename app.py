@@ -1,4 +1,5 @@
 import os
+import math
 import secrets
 import sqlite3
 from datetime import datetime
@@ -319,61 +320,116 @@ def planner():
     )
 
 
+def fetch_latest_cnc_sensor_values(machine_name):
+    """Read the latest sensor values for one machine; this query is read-only."""
+    connection, error = get_mysql_connection()
+    if connection is None:
+        return None, error
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT sm.sensor_name, sm.sensor_value
+            FROM MACHINE m
+            JOIN SENSOR_READING sr ON sr.machine_id = m.machine_id
+            JOIN SENSOR_MEASUREMENT sm ON sm.reading_id = sr.reading_id
+            WHERE m.machine_name = %s
+              AND sr.reading_id = (
+                  SELECT MAX(sr2.reading_id)
+                  FROM SENSOR_READING sr2
+                  WHERE sr2.machine_id = m.machine_id
+              )
+        """, (machine_name,))
+        rows = cursor.fetchall()
+        cursor.close()
+        values = {row["sensor_name"]: row["sensor_value"] for row in rows}
+        required = ("Temperature", "RPM", "Torque", "Tool Wear")
+        missing = [name for name in required if name not in values]
+        if missing:
+            return None, "Latest reading is missing: " + ", ".join(missing)
+        return values, None
+    except Exception:
+        app.logger.exception("Unable to read latest CNC sensor values")
+        return None, "Could not read the latest sensor values."
+    finally:
+        connection.close()
+
+
 @app.route("/simulator", methods=["GET", "POST"])
 @login_required
 def simulator():
-    """Explore hypothetical risk/health adjustments without writing to any database."""
+    """Compare actual model inference on current vs hypothetical CNC sensor values."""
+    from ml.cnc_what_if import predict_cnc_risk
+
     machines, readings, decisions, db_error = fetch_machine_summary()
+    decisions = [item for item in decisions if str(item.get("machine_name", "")).upper().startswith("CNC-")]
     selected_name = request.values.get("machine", "").strip()
-    selected = next(
-        (item for item in decisions if item.get("machine_name") == selected_name),
-        None,
-    )
+    selected = next((item for item in decisions if item.get("machine_name") == selected_name), None)
     if selected is None and decisions:
         selected = decisions[0]
     selected_name = selected.get("machine_name", "") if selected else selected_name
 
-    try:
-        risk_reduction = float(request.values.get("risk_reduction", "15"))
-    except (TypeError, ValueError):
-        risk_reduction = 15.0
-    try:
-        health_gain = float(request.values.get("health_gain", "10"))
-    except (TypeError, ValueError):
-        health_gain = 10.0
+    sensor_fields = {
+        "temperature": ("Temperature", "Temperature (°C)", -273.15, 500.0),
+        "rpm": ("RPM", "Rotational speed (RPM)", 0.0, 100000.0),
+        "torque": ("Torque", "Torque (Nm)", 0.0, 10000.0),
+        "tool_wear": ("Tool Wear", "Tool wear (min)", 0.0, 100000.0),
+    }
+    scenario_values = {}
+    input_error = None
+    current_values = None
+    baseline_risk = simulated_risk = baseline_health = simulated_health = None
 
-    risk_reduction = min(100.0, max(0.0, risk_reduction))
-    health_gain = min(100.0, max(0.0, health_gain))
-    baseline_risk = None
-    baseline_health = None
-    simulated_risk = None
-    simulated_health = None
     if selected:
-        try:
-            baseline_risk = min(100.0, max(0.0, float(selected.get("failure_risk") or 0)))
-        except (TypeError, ValueError):
-            baseline_risk = 0.0
-        try:
-            baseline_health = min(100.0, max(0.0, float(selected.get("health_score") or 0)))
-        except (TypeError, ValueError):
-            baseline_health = 0.0
-        simulated_risk = round(max(0.0, baseline_risk - risk_reduction), 2)
-        simulated_health = round(min(100.0, baseline_health + health_gain), 2)
-
+        current_values, sensor_error = fetch_latest_cnc_sensor_values(selected_name)
+        if sensor_error:
+            input_error = sensor_error
+        else:
+            scenario_values = {
+                "temperature": float(current_values["Temperature"]),
+                "rpm": float(current_values["RPM"]),
+                "torque": float(current_values["Torque"]),
+                "tool_wear": float(current_values["Tool Wear"]),
+            }
+            for key, (sensor_name, label, minimum, maximum) in sensor_fields.items():
+                raw = request.values.get(key)
+                if raw not in (None, ""):
+                    try:
+                        value = float(raw)
+                        if not math.isfinite(value) or value < minimum or value > maximum:
+                            raise ValueError
+                        scenario_values[key] = value
+                    except (TypeError, ValueError):
+                        input_error = f"{label} must be a finite value between {minimum:g} and {maximum:g}."
+                        break
+            try:
+                baseline_risk = predict_cnc_risk(current_values)
+                if input_error is None:
+                    hypothetical = {
+                        "Temperature": scenario_values["temperature"],
+                        "RPM": scenario_values["rpm"],
+                        "Torque": scenario_values["torque"],
+                        "Tool Wear": scenario_values["tool_wear"],
+                    }
+                    simulated_risk = predict_cnc_risk(hypothetical)
+                    baseline_health = round(100.0 - baseline_risk, 2)
+                    simulated_health = round(100.0 - simulated_risk, 2)
+            except Exception:
+                app.logger.exception("CNC what-if model inference failed")
+                input_error = input_error or "Model prediction is unavailable. Check the model file and its input features."
     return render_template(
         "simulator.html",
         decisions=decisions,
         selected=selected,
         selected_name=selected_name,
         db_error=db_error,
-        risk_reduction=risk_reduction,
-        health_gain=health_gain,
+        input_error=input_error,
+        current_values=current_values,
+        scenario_values=scenario_values,
         baseline_risk=baseline_risk,
         baseline_health=baseline_health,
         simulated_risk=simulated_risk,
         simulated_health=simulated_health,
     )
-
 
 @app.route("/logout", methods=["POST"])
 @login_required
