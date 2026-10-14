@@ -1,19 +1,26 @@
+import os
+from pathlib import Path
+
 import mysql.connector
+from dotenv import load_dotenv
 from pymongo import MongoClient
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 
 # ============================================================
 # DATABASE SETTINGS
 # ============================================================
 
-MYSQL_HOST = "localhost"
-MYSQL_USER = "root"
-MYSQL_PASSWORD = "#123Vrk7"
-MYSQL_DATABASE = "AI_Maintenance_DB"
+MYSQL_HOST = os.getenv("MYSQL_HOST", "127.0.0.1")
+MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
+MYSQL_USER = os.getenv("MYSQL_USER", "")
+MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
+MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", "AI_Maintenance_DB")
 
-MONGO_URL = "mongodb://localhost:27017/"
-MONGO_DATABASE = "AI_Maintenance_Mongo"
-MONGO_COLLECTION = "AI_Event_Log"
+MONGO_URL = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
+MONGO_DATABASE = os.getenv("MONGO_DATABASE", "AI_Maintenance_Mongo")
+MONGO_COLLECTION = os.getenv("MONGO_COLLECTION", "AI_Event_Log")
 
 
 print("=" * 70)
@@ -35,11 +42,16 @@ try:
     print()
     print("Connecting to MySQL...")
 
+    if not MYSQL_USER or not MYSQL_PASSWORD:
+        raise RuntimeError("Set MYSQL_USER and MYSQL_PASSWORD in your local .env file.")
+
     mysql_connection = mysql.connector.connect(
         host=MYSQL_HOST,
+        port=MYSQL_PORT,
         user=MYSQL_USER,
         password=MYSQL_PASSWORD,
-        database=MYSQL_DATABASE
+        database=MYSQL_DATABASE,
+        connection_timeout=5,
     )
 
     print("MySQL connected successfully.")
