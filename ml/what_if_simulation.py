@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from pymongo import MongoClient
 
 from fuzzy_logic import calculate_urgency
+from model_utils import predict_failure_probability
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
@@ -383,9 +384,7 @@ print(
 )
 
 
-current_prediction = model.predict_proba(
-    current_input
-)[0][1]
+current_prediction = predict_failure_probability(model, current_input)
 
 
 current_risk = current_prediction * 100
@@ -627,9 +626,7 @@ scenario_input = create_model_input(
 )
 
 
-scenario_prediction = model.predict_proba(
-    scenario_input
-)[0][1]
+scenario_prediction = predict_failure_probability(model, scenario_input)
 
 
 scenario_risk = scenario_prediction * 100
