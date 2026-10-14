@@ -117,3 +117,66 @@ def test_planner_ranks_saved_decisions(client, monkeypatch):
     assert b"Maintenance priority planner" in response.data
     assert response.data.index(b"CNC-103") < response.data.index(b"CNC-101")
     assert b"Read-only recommendations" in response.data
+
+
+def test_simulator_requires_login(client):
+    response = client.get("/simulator")
+    assert response.status_code == 302
+    assert "/login" in response.headers["Location"]
+
+
+def test_simulator_calculates_bounded_hypothetical_scores(client, monkeypatch):
+    create_user()
+    decisions = [
+        {
+            "machine_name": "CNC-103",
+            "urgency_score": 72.0,
+            "failure_risk": 81.0,
+            "health_score": 19.0,
+            "urgency_level": "HIGH",
+            "recommendation": "Inspect immediately",
+            "decision_time": "2026-01-01 11:00:00",
+            "model_key": "test",
+        }
+    ]
+    monkeypatch.setattr(
+        dashboard_app,
+        "fetch_machine_summary",
+        lambda: ([], [], decisions, None),
+    )
+    client.post(
+        "/login",
+        data={"username": "manager", "password": "correct-horse-battery-staple"},
+    )
+    response = client.get("/simulator?machine=CNC-103&risk_reduction=20&health_gain=15")
+    assert response.status_code == 200
+    assert b"Maintenance What-If Simulator" in response.data
+    assert b"61.00%" in response.data
+    assert b"34.00%" in response.data
+    assert b"not written back" in response.data
+
+
+def test_simulator_clamps_user_supplied_adjustments(client, monkeypatch):
+    create_user()
+    decisions = [
+        {
+            "machine_name": "CNC-101",
+            "failure_risk": 40.0,
+            "health_score": 70.0,
+            "urgency_score": 45.0,
+            "urgency_level": "MEDIUM",
+        }
+    ]
+    monkeypatch.setattr(
+        dashboard_app,
+        "fetch_machine_summary",
+        lambda: ([], [], decisions, None),
+    )
+    client.post(
+        "/login",
+        data={"username": "manager", "password": "correct-horse-battery-staple"},
+    )
+    response = client.get("/simulator?machine=CNC-101&risk_reduction=999&health_gain=-30")
+    assert response.status_code == 200
+    assert b"0.00%" in response.data
+    assert b"100.00%" in response.data
