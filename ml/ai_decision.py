@@ -634,7 +634,7 @@ def predict_robot(model_object, sensor_data, sensor_history=None):
     """Predict robot risk using recent history to match training-time features."""
     model = extract_model(model_object)
 
-    from robot_features import build_robot_feature_row
+    from robot_features import DEFAULT_FEATURES, build_robot_feature_row
 
     trained_features = None
     if isinstance(model_object, dict):
@@ -648,7 +648,7 @@ def predict_robot(model_object, sensor_data, sensor_history=None):
         feature_names=trained_features,
     )
     if not trained_features:
-        trained_features = list(feature_row.keys())
+        trained_features = DEFAULT_FEATURES
     X = pd.DataFrame([[feature_row[name] for name in trained_features]], columns=trained_features)
     failure_risk = predict_failure_probability(model, X)
     failure_risk_percent = failure_risk * 100.0
