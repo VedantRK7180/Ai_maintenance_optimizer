@@ -13,9 +13,8 @@ from flask_wtf.csrf import CSRFProtect
 from ml.model_utils import predict_failure_probability
 from werkzeug.security import check_password_hash
 
-load_dotenv()
-
 BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
 AUTH_DB = Path(os.getenv("AUTH_DB_PATH", str(BASE_DIR / "instance" / "auth.db")))
 MODEL_PATH = BASE_DIR / "ml" / "cnc_model_baseline.joblib"
 
