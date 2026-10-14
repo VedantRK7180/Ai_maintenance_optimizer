@@ -2,6 +2,8 @@ import os
 import joblib
 import pandas as pd
 
+from ml.model_utils import predict_failure_probability
+
 # ============================================================
 # 1. FIND THE TRAINED MODEL
 # ============================================================
@@ -65,9 +67,7 @@ def predict_machine(
     prediction = model.predict(input_data)[0]
 
     # Predict probability
-    probabilities = model.predict_proba(input_data)[0]
-
-    failure_probability = probabilities[1]
+    failure_probability = predict_failure_probability(model, input_data)
 
     # Convert probability to percentage
     failure_risk = failure_probability * 100
