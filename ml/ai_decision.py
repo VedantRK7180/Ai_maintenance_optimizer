@@ -60,11 +60,11 @@ if not DB_CONFIG["password"]:
 # MONGODB CONFIGURATION
 # ============================================================
 
-MONGO_URI = "mongodb://localhost:27017"
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 
-MONGO_DATABASE = "AI_Maintenance_Mongo"
+MONGO_DATABASE = os.getenv("MONGO_DATABASE", "AI_Maintenance_Mongo")
 
-MONGO_COLLECTION = "AI_Event_Log"
+MONGO_COLLECTION = os.getenv("MONGO_COLLECTION", "AI_Event_Log")
 
 
 # ============================================================
