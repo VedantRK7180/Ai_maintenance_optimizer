@@ -1,0 +1,28 @@
+name: Python tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, "chatgpt/**"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+      - name: Run automated tests
+        env:
+          FLASK_SECRET_KEY: test-secret-key-for-ci
+        run: pytest -q

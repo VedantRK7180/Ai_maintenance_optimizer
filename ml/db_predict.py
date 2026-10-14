@@ -2,6 +2,9 @@ import os
 import mysql.connector
 import joblib
 import pandas as pd
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 # ============================================================
@@ -21,11 +24,16 @@ MODEL_PATH = os.path.join(
 # 2. MYSQL CONNECTION
 # ============================================================
 
+mysql_password = os.getenv("MYSQL_PASSWORD")
+if not mysql_password:
+    raise RuntimeError("MYSQL_PASSWORD is missing. Add your existing MySQL password to the local .env file.")
+
 connection = mysql.connector.connect(
-    host="localhost",
-    user="root",
-    password="#123Vrk7",
-    database="AI_Maintenance_DB"
+    host=os.getenv("MYSQL_HOST", "localhost"),
+    port=int(os.getenv("MYSQL_PORT", "3306")),
+    user=os.getenv("MYSQL_USER", "root"),
+    password=mysql_password,
+    database=os.getenv("MYSQL_DATABASE", "AI_Maintenance_DB")
 )
 
 print("\n========== DATABASE AI PREDICTION ==========\n")
