@@ -411,7 +411,11 @@ def simulator():
                         "Tool Wear": scenario_values["tool_wear"],
                     }
                     simulated_risk = predict_cnc_risk(hypothetical)
-                    baseline_health = round(100.0 - baseline_risk, 2)
+                    try:
+                        saved_health = float(selected.get("health_score")) if selected.get("health_score") is not None else None
+                    except (TypeError, ValueError):
+                        saved_health = None
+                    baseline_health = round(saved_health, 2) if saved_health is not None and math.isfinite(saved_health) else None
                     simulated_health = round(100.0 - simulated_risk, 2)
             except Exception:
                 app.logger.exception("CNC what-if model inference failed")
