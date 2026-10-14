@@ -50,7 +50,7 @@ def test_login_rejects_wrong_password(client):
 
 def test_login_dashboard_and_logout(client, monkeypatch):
     create_user()
-    monkeypatch.setattr(dashboard_app, "fetch_machine_summary", lambda: ([], [], "Database not configured for test"))
+    monkeypatch.setattr(dashboard_app, "fetch_machine_summary", lambda: ([], [], [], "Database not configured for test"))
     monkeypatch.setattr(dashboard_app, "predict_machine_risk", lambda: (None, "Model unavailable in test"))
 
     response = client.post(
