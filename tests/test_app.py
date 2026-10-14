@@ -151,6 +151,8 @@ def test_simulator_runs_model_for_current_and_scenario_sensor_values(client, mon
     assert b"Maintenance What-If Simulator" in response.data
     assert b"30.00%" in response.data
     assert b"22.50%" in response.data
+    assert b"19.00%" in response.data
+    assert b"77.50%" in response.data
     assert calls[1]["Temperature"] == 45
     assert calls[1]["RPM"] == 1600
     assert calls[1]["Torque"] == 40
