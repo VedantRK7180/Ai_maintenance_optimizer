@@ -1,26 +1,35 @@
+import os
+from pathlib import Path
+
 import mysql.connector
 import joblib
 import pandas as pd
+from dotenv import load_dotenv
 
 from pymongo import MongoClient
 
 from fuzzy_logic import calculate_urgency
+from model_utils import predict_failure_probability
 
 
 # ============================================================
 # SETTINGS
 # ============================================================
 
-MYSQL_HOST = "localhost"
-MYSQL_USER = "root"
-MYSQL_PASSWORD = "#123Vrk7"
-MYSQL_DATABASE = "AI_Maintenance_DB"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(PROJECT_ROOT / ".env")
 
-MODEL_FILE = "ml/cnc_model_baseline.joblib"
+MYSQL_HOST = os.getenv("MYSQL_HOST", "127.0.0.1")
+MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
+MYSQL_USER = os.getenv("MYSQL_USER", "")
+MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
+MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", "AI_Maintenance_DB")
 
-MONGO_URI = "mongodb://localhost:27017/"
-MONGO_DATABASE = "AI_Maintenance_Mongo"
-MONGO_COLLECTION = "WHAT_IF_SCENARIOS"
+MODEL_FILE = PROJECT_ROOT / "ml" / "cnc_model_baseline.joblib"
+
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
+MONGO_DATABASE = os.getenv("MONGO_DATABASE", "AI_Maintenance_Mongo")
+MONGO_COLLECTION = os.getenv("WHAT_IF_MONGO_COLLECTION", "WHAT_IF_SCENARIOS")
 
 
 # ============================================================
@@ -88,11 +97,16 @@ print(
 print()
 print("Connecting to MySQL...")
 
+if not MYSQL_USER or not MYSQL_PASSWORD:
+    raise RuntimeError("Set MYSQL_USER and MYSQL_PASSWORD in your .env file.")
+
 connection = mysql.connector.connect(
     host=MYSQL_HOST,
+    port=MYSQL_PORT,
     user=MYSQL_USER,
     password=MYSQL_PASSWORD,
-    database=MYSQL_DATABASE
+    database=MYSQL_DATABASE,
+    connection_timeout=5,
 )
 
 print("MySQL connected successfully.")
@@ -369,9 +383,7 @@ print(
 )
 
 
-current_prediction = model.predict_proba(
-    current_input
-)[0][1]
+current_prediction = predict_failure_probability(model, current_input)
 
 
 current_risk = current_prediction * 100
@@ -613,9 +625,7 @@ scenario_input = create_model_input(
 )
 
 
-scenario_prediction = model.predict_proba(
-    scenario_input
-)[0][1]
+scenario_prediction = predict_failure_probability(model, scenario_input)
 
 
 scenario_risk = scenario_prediction * 100
