@@ -2,6 +2,8 @@ import os
 import mysql.connector
 import joblib
 import pandas as pd
+
+from model_utils import predict_failure_probability
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -186,9 +188,7 @@ input_data = input_data[model_features]
 
 prediction = model.predict(input_data)[0]
 
-probabilities = model.predict_proba(input_data)[0]
-
-failure_risk = probabilities[1] * 100
+failure_risk = predict_failure_probability(model, input_data) * 100
 
 
 # ============================================================
