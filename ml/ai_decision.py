@@ -634,59 +634,21 @@ def predict_robot(model_object, sensor_data, sensor_history=None):
     """Predict robot risk using recent history to match training-time features."""
     model = extract_model(model_object)
 
-    required = ("Position", "Temperature", "Voltage")
-    missing = [name for name in required if sensor_data.get(name) is None]
-    if missing:
-        raise ValueError("Robot sensor data missing: " + ", ".join(missing))
-
-    current = {
-        "position": float(sensor_data["Position"]),
-        "temperature": float(sensor_data["Temperature"]),
-        "voltage": float(sensor_data["Voltage"]),
-    }
-
-    # Include only history records that contain all three model sensors.
-    complete_history = []
-    for reading in sensor_history or []:
-        if all(reading.get(name) is not None for name in required):
-            complete_history.append({
-                "position": float(reading["Position"]),
-                "temperature": float(reading["Temperature"]),
-                "voltage": float(reading["Voltage"]),
-            })
-
-    if not complete_history or complete_history[-1] != current:
-        complete_history.append(current)
-    complete_history = complete_history[-10:]
-
-    frame = pd.DataFrame(complete_history)
-    feature_row = {}
-    for column in ("position", "temperature", "voltage"):
-        values = frame[column]
-        feature_row[column] = float(values.iloc[-1])
-        feature_row[f"{column}_change"] = (
-            float(values.iloc[-1] - values.iloc[-2]) if len(values) >= 2 else 0.0
-        )
-        feature_row[f"{column}_rolling_mean"] = float(values.mean())
-        feature_row[f"{column}_rolling_std"] = float(values.std(ddof=1)) if len(values) >= 2 else 0.0
+    from robot_features import build_robot_feature_row
 
     trained_features = None
     if isinstance(model_object, dict):
         trained_features = model_object.get("features")
     if trained_features is None and hasattr(model, "feature_names_in_"):
         trained_features = list(model.feature_names_in_)
+
+    feature_row = build_robot_feature_row(
+        sensor_data,
+        sensor_history or [],
+        feature_names=trained_features,
+    )
     if not trained_features:
-        trained_features = [
-            "position", "temperature", "voltage",
-            "position_change", "temperature_change", "voltage_change",
-            "position_rolling_mean", "temperature_rolling_mean", "voltage_rolling_mean",
-            "position_rolling_std", "temperature_rolling_std", "voltage_rolling_std",
-        ]
-
-    missing_features = [name for name in trained_features if name not in feature_row]
-    if missing_features:
-        raise ValueError("Missing robot model features: " + ", ".join(missing_features))
-
+        trained_features = list(feature_row.keys())
     X = pd.DataFrame([[feature_row[name] for name in trained_features]], columns=trained_features)
     failure_risk = predict_failure_probability(model, X)
     failure_risk_percent = failure_risk * 100.0
