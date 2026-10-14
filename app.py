@@ -152,15 +152,15 @@ def fetch_machine_summary():
 
 
 def predict_machine_risk(machine_name="CNC-102"):
-    """Run the existing Random Forest model against the latest available sensor reading."""
-    if not MODEL_PATH.exists():
+    """Run the shared CNC model-input pipeline against the latest sensor reading."""
+    if not MODEL_PATH.is_file():
         return None, "Model file ml/cnc_model_baseline.joblib is missing."
     connection, error = get_mysql_connection()
     if connection is None:
         return None, error
     try:
         import joblib
-        import pandas as pd
+        from ml.cnc_what_if import build_cnc_model_input
 
         cursor = connection.cursor(dictionary=True)
         cursor.execute("""
@@ -181,39 +181,30 @@ def predict_machine_risk(machine_name="CNC-102"):
         if not rows:
             return None, f"No sensor readings found for {machine_name}."
 
-        sensor_data = {row["sensor_name"]: float(row["sensor_value"]) for row in rows}
-        required = ("Temperature", "RPM", "Torque", "Tool Wear")
-        missing = [name for name in required if name not in sensor_data]
+        sensor_data = {row["sensor_name"]: row["sensor_value"] for row in rows}
+        missing = [name for name in ("Temperature", "RPM", "Torque", "Tool Wear") if name not in sensor_data]
         if missing:
             return None, "Latest reading is missing model inputs: " + ", ".join(missing)
 
         package = joblib.load(MODEL_PATH)
+        if not isinstance(package, dict) or "model" not in package:
+            raise ValueError("The CNC model package has an unexpected format.")
         model = package["model"]
-        model_features = package["features"]
-        air_temperature = sensor_data["Temperature"] + 273.15
-        input_data = pd.DataFrame([{
-            "Type": "M",
-            "Air temperature [K]": air_temperature,
-            "Process temperature [K]": air_temperature + 10.0,
-            "Rotational speed [rpm]": sensor_data["RPM"],
-            "Torque [Nm]": sensor_data["Torque"],
-            "Tool wear [min]": sensor_data["Tool Wear"],
-        }])
-        input_data = pd.get_dummies(input_data, columns=["Type"], dtype=int)
-        for column in model_features:
-            if column not in input_data.columns:
-                input_data[column] = 0
-        input_data = input_data[model_features]
+        model_features = package.get("features") or list(getattr(model, "feature_names_in_", []))
+        if not model_features:
+            raise ValueError("The CNC model does not declare its expected input features.")
+
+        input_data = build_cnc_model_input(sensor_data, list(model_features))
         prediction = int(model.predict(input_data)[0])
         risk = predict_failure_probability(model, input_data)
         return {
             "machine_name": machine_name,
             "condition": "FAILURE RISK" if prediction == 1 else "NORMAL",
             "risk": round(risk * 100, 2),
-            "temperature": sensor_data["Temperature"],
-            "rpm": sensor_data["RPM"],
-            "torque": sensor_data["Torque"],
-            "tool_wear": sensor_data["Tool Wear"],
+            "temperature": float(sensor_data["Temperature"]),
+            "rpm": float(sensor_data["RPM"]),
+            "torque": float(sensor_data["Torque"]),
+            "tool_wear": float(sensor_data["Tool Wear"]),
         }, None
     except Exception:
         app.logger.exception("Machine risk prediction failed")
@@ -416,9 +407,9 @@ def simulator():
                         except (TypeError, ValueError):
                             input_error = f"{label} must be a finite value between {minimum:g} and {maximum:g}."
                             break
-                try:
-                    baseline_risk = predict_cnc_risk(current_values)
-                    if input_error is None:
+                if input_error is None:
+                    try:
+                        baseline_risk = predict_cnc_risk(current_values)
                         hypothetical = {
                             "Temperature": scenario_values["temperature"],
                             "RPM": scenario_values["rpm"],
@@ -432,9 +423,9 @@ def simulator():
                             saved_health = None
                         baseline_health = round(saved_health, 2) if saved_health is not None and math.isfinite(saved_health) and 0 <= saved_health <= 100 else None
                         simulated_health = round(100.0 - simulated_risk, 2)
-                except Exception:
-                    app.logger.exception("CNC what-if model inference failed")
-                    input_error = input_error or "Model prediction is unavailable. Check the model file and its input features."
+                    except Exception:
+                        app.logger.exception("CNC what-if model inference failed")
+                        input_error = "Model prediction is unavailable. Check the model file and its input features."
     return render_template(
         "simulator.html",
         decisions=decisions,
