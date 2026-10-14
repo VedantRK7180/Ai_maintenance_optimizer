@@ -1,4 +1,8 @@
+import os
+from pathlib import Path
+
 import mysql.connector
+from dotenv import load_dotenv
 from pymongo import MongoClient
 
 
@@ -6,14 +10,18 @@ from pymongo import MongoClient
 # DATABASE SETTINGS
 # ============================================================
 
-MYSQL_HOST = "localhost"
-MYSQL_USER = "root"
-MYSQL_PASSWORD = "#123Vrk7"
-MYSQL_DATABASE = "AI_Maintenance_DB"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(PROJECT_ROOT / ".env")
 
-MONGO_URL = "mongodb://localhost:27017/"
-MONGO_DATABASE = "AI_Maintenance_Mongo"
-MONGO_COLLECTION = "AI_Event_Log"
+MYSQL_HOST = os.getenv("MYSQL_HOST", "localhost")
+MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
+MYSQL_USER = os.getenv("MYSQL_USER", "")
+MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", os.getenv("DB_PASSWORD", ""))
+MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", "AI_Maintenance_DB")
+
+MONGO_URL = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
+MONGO_DATABASE = os.getenv("MONGO_DATABASE", "AI_Maintenance_Mongo")
+MONGO_COLLECTION = os.getenv("MONGO_COLLECTION", "AI_Event_Log")
 
 
 print("=" * 70)
@@ -37,6 +45,7 @@ try:
 
     mysql_connection = mysql.connector.connect(
         host=MYSQL_HOST,
+        port=MYSQL_PORT,
         user=MYSQL_USER,
         password=MYSQL_PASSWORD,
         database=MYSQL_DATABASE

@@ -2,10 +2,11 @@ import pandas as pd
 import numpy as np
 import glob
 import os
+from pathlib import Path
 import joblib
 
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import GroupShuffleSplit
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
 
@@ -13,11 +14,15 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 # 1. LOAD ROBOT DATA
 # ============================================================
 
-DATA_FOLDER = os.path.expandvars(
-    r"%USERPROFILE%\Downloads\robot-predictive-maintenance\training_data\training_data\20240426_140055"
-)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DATA_FOLDER = Path(os.getenv(
+    "ROBOT_DATA_FOLDER",
+    str(PROJECT_ROOT / "data" / "robot-predictive-maintenance"
+        / "training_data" / "training_data" / "20240426_140055")
+))
+OUTPUT_PATH = PROJECT_ROOT / "ml" / "robot_model_improved.joblib"
 
-files = glob.glob(os.path.join(DATA_FOLDER, "data_motor_*.csv"))
+files = sorted(glob.glob(str(DATA_FOLDER / "data_motor_*.csv")))
 
 print("=" * 60)
 print("AI MAINTENANCE OPTIMIZER")
@@ -25,6 +30,12 @@ print("IMPROVED ROBOT PREDICTIVE MAINTENANCE MODEL")
 print("=" * 60)
 
 print(f"\nMotor files found : {len(files)}")
+
+if not files:
+    raise FileNotFoundError(
+        f"No data_motor_*.csv files found in {DATA_FOLDER}. "
+        "Set ROBOT_DATA_FOLDER in your environment to the dataset directory."
+    )
 
 dataframes = []
 
@@ -105,13 +116,19 @@ y = data["label"]
 # 5. TRAIN / TEST SPLIT
 # ============================================================
 
-X_train, X_test, y_train, y_test = train_test_split(
-    X,
-    y,
-    test_size=0.20,
-    random_state=42,
-    stratify=y
-)
+# Keep each motor entirely in either train or test to avoid leakage
+# from adjacent time-series observations of the same physical motor.
+groups = data["motor_id"]
+if groups.nunique() < 2:
+    raise ValueError(
+        "At least two motor CSV files are required for a motor-wise holdout. "
+        "A random row split would leak nearby time-series samples."
+    )
+
+splitter = GroupShuffleSplit(n_splits=1, test_size=0.20, random_state=42)
+train_indices, test_indices = next(splitter.split(X, y, groups=groups))
+X_train, X_test = X.iloc[train_indices], X.iloc[test_indices]
+y_train, y_test = y.iloc[train_indices], y.iloc[test_indices]
 
 
 print(f"Training samples  : {len(X_train)}")
@@ -154,13 +171,15 @@ print(
     classification_report(
         y_test,
         y_pred,
-        target_names=["NORMAL", "FAILURE"]
+        labels=[0, 1],
+        target_names=["NORMAL", "FAILURE"],
+        zero_division=0,
     )
 )
 
 print("Confusion Matrix:")
 
-print(confusion_matrix(y_test, y_pred))
+print(confusion_matrix(y_test, y_pred, labels=[0, 1]))
 
 
 # ============================================================
@@ -189,7 +208,7 @@ model_package = {
     "description": "Improved Robot Predictive Maintenance Random Forest"
 }
 
-output_path = "ml/robot_model_improved.joblib"
+output_path = OUTPUT_PATH
 
 joblib.dump(model_package, output_path)
 

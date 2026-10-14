@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>What-If Simulator · Maintenance Optimizer</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('dashboard') }}"><span class="brand-mark small">MO</span> Maintenance Optimizer</a>
+    <div class="topbar-right">
+      <a class="ghost-button" href="{{ url_for('dashboard') }}">Dashboard</a>
+      <a class="ghost-button" href="{{ url_for('planner') }}">Maintenance planner</a>
+      <span class="user-chip">{{ session.get('username', 'Manager') }} <span class="role-dot"></span></span>
+      <form method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="ghost-button" type="submit">Log out</button>
+      </form>
+    </div>
+  </header>
+  <main class="page-wrap">
+    <section class="welcome-row">
+      <div>
+        <p class="eyebrow">SCENARIO WORKSPACE</p>
+        <h1>Maintenance What-If Simulator</h1>
+        <p class="muted">Compare the CNC model's output for latest sensor readings and hypothetical sensor values.</p>
+      </div>
+      <span class="live-pill"><span></span> Simulation only</span>
+    </section>
+
+    <div class="notice warning">
+      <strong>Model-based scenario only:</strong> the existing CNC classifier runs on current and hypothetical sensor values. This is not a guarantee of real-world outcomes.
+    </div>
+    {% if db_error %}<div class="notice warning"><strong>Data connection:</strong> {{ db_error }}</div>{% endif %}
+    {% if input_error %}<div class="notice warning"><strong>Simulation unavailable:</strong> {{ input_error }}</div>{% endif %}
+
+    <section class="panel">
+      <div class="panel-heading"><div><h2>Configure a scenario</h2><p class="muted">Choose a CNC machine and enter any hypothetical sensor values. Leave values unchanged to use current readings.</p></div></div>
+      {% if decisions %}
+      <form method="get" action="{{ url_for('simulator') }}" class="scenario-form">
+        <label for="machine">Machine</label>
+        <select id="machine" name="machine">
+          {% for item in decisions %}
+            <option value="{{ item.machine_name }}" {% if item.machine_name == selected_name %}selected{% endif %}>{{ item.machine_name }}</option>
+          {% endfor %}
+        </select>
+        <label for="temperature">Scenario temperature (°C)</label>
+        <input id="temperature" name="temperature" type="number" min="-273.15" max="500" step="any" value="{{ scenario_values.get('temperature', '') }}">
+        <label for="rpm">Scenario rotational speed (RPM)</label>
+        <input id="rpm" name="rpm" type="number" min="0" max="100000" step="any" value="{{ scenario_values.get('rpm', '') }}">
+        <label for="torque">Scenario torque (Nm)</label>
+        <input id="torque" name="torque" type="number" min="0" max="10000" step="any" value="{{ scenario_values.get('torque', '') }}">
+        <label for="tool_wear">Scenario tool wear (min)</label>
+        <input id="tool_wear" name="tool_wear" type="number" min="0" max="100000" step="any" value="{{ scenario_values.get('tool_wear', '') }}">
+        <button class="primary-button" type="submit">Run model scenario</button>
+      </form>
+      {% else %}
+        <div class="empty-state"><div class="empty-icon">WF</div><h3>No saved decisions to simulate</h3><p>Run the AI decision engine and ensure it has saved records in AI_DECISION before using this page.</p></div>
+      {% endif %}
+    </section>
+
+    {% if selected and simulated_risk is not none %}
+    <section class="stat-grid">
+      <article class="stat-card"><span class="stat-label">Baseline risk score</span><strong class="stat-value">{{ '%.2f'|format(baseline_risk) }}%</strong><span class="stat-foot">Model on current sensor values</span></article>
+      <article class="stat-card"><span class="stat-label">Scenario risk score</span><strong class="stat-value">{{ '%.2f'|format(simulated_risk) }}%</strong><span class="stat-foot">Model on scenario sensor values</span></article>
+      <article class="stat-card"><span class="stat-label">Baseline health score</span><strong class="stat-value">{{ ('%.2f'|format(baseline_health)) ~ '%' if baseline_health is not none else 'N/A' }}</strong><span class="stat-foot">Saved AI decision</span></article>
+      <article class="stat-card"><span class="stat-label">Scenario health score</span><strong class="stat-value">{{ '%.2f'|format(simulated_health) }}%</strong><span class="stat-foot">Derived as 100 − model risk</span></article>
+    </section>
+    <section class="panel">
+      <div class="panel-heading"><div><h2>Scenario summary · {{ selected_name }}</h2><p class="muted">Model inference is read-only and is not written back to any database.</p></div></div>
+      <div class="table-scroll"><table><thead><tr><th>Metric</th><th>Saved value</th><th>Hypothetical value</th><th>Change</th></tr></thead>
+      <tbody>
+        <tr><td>Risk score</td><td>{{ '%.2f'|format(baseline_risk) }}%</td><td>{{ '%.2f'|format(simulated_risk) }}%</td><td>-{{ '%.2f'|format(baseline_risk - simulated_risk) }} points</td></tr>
+        <tr><td>Health score</td><td>{{ ('%.2f'|format(baseline_health)) ~ '%' if baseline_health is not none else 'N/A' }}</td><td>{{ '%.2f'|format(simulated_health) }}%</td><td>{{ ('+' ~ ('%.2f'|format(simulated_health - baseline_health)) ~ ' points') if baseline_health is not none else 'N/A' }}</td></tr>
+      </tbody></table></div>
+    </section>
+    {% endif %}
+    <p class="footer-note">AI Maintenance Optimizer · {{ current_year }} · Scenario inference is not a validated operational forecast.</p>
+  </main>
+</body>
+</html>

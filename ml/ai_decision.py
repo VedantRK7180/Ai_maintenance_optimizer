@@ -4,8 +4,11 @@ import joblib
 import mysql.connector
 import pandas as pd
 
+from dotenv import load_dotenv
 from pymongo import MongoClient
 from datetime import datetime, timezone
+
+load_dotenv()
 
 
 # ============================================================
@@ -32,6 +35,7 @@ if ML_DIR not in sys.path:
 # ============================================================
 
 from fuzzy_logic import calculate_urgency
+from model_utils import predict_failure_probability
 from bearing_model import predict_latest_bearing
 
 
@@ -40,22 +44,28 @@ from bearing_model import predict_latest_bearing
 # ============================================================
 
 DB_CONFIG = {
-    "host": "localhost",
-    "user": "root",
-    "password": "#123Vrk7",
-    "database": "AI_Maintenance_DB"
+    "host": os.getenv("MYSQL_HOST", os.getenv("DB_HOST", "localhost")),
+    "port": int(os.getenv("MYSQL_PORT", "3306")),
+    "user": os.getenv("MYSQL_USER", os.getenv("DB_USER", "root")),
+    "password": os.getenv("MYSQL_PASSWORD", os.getenv("DB_PASSWORD", "")),
+    "database": os.getenv("MYSQL_DATABASE", os.getenv("DB_NAME", "AI_Maintenance_DB")),
 }
+
+if not DB_CONFIG["password"]:
+    raise RuntimeError(
+        "MySQL password is missing. Set MYSQL_PASSWORD (or DB_PASSWORD) in your local .env file."
+    )
 
 
 # ============================================================
 # MONGODB CONFIGURATION
 # ============================================================
 
-MONGO_URI = "mongodb://localhost:27017"
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 
-MONGO_DATABASE = "AI_Maintenance_Mongo"
+MONGO_DATABASE = os.getenv("MONGO_DATABASE", "AI_Maintenance_Mongo")
 
-MONGO_COLLECTION = "AI_Event_Log"
+MONGO_COLLECTION = os.getenv("MONGO_COLLECTION", "AI_Event_Log")
 
 
 # ============================================================
@@ -133,6 +143,37 @@ def get_machines(connection):
 # GET LATEST SENSOR DATA
 # ============================================================
 
+def get_recent_sensor_history(connection, machine_id, limit=10):
+    """Return recent complete sensor readings for robot time-series features."""
+    cursor = connection.cursor(dictionary=True)
+    query = """
+    SELECT sr.reading_id, sr.recorded_at, sm.sensor_name, sm.sensor_value
+    FROM SENSOR_READING sr
+    JOIN SENSOR_MEASUREMENT sm ON sm.reading_id = sr.reading_id
+    JOIN (
+        SELECT reading_id, recorded_at
+        FROM SENSOR_READING
+        WHERE machine_id = %s
+        ORDER BY recorded_at DESC, reading_id DESC
+        LIMIT %s
+    ) recent ON recent.reading_id = sr.reading_id
+    ORDER BY sr.recorded_at ASC, sr.reading_id ASC, sm.sensor_name ASC;
+    """
+    cursor.execute(query, (machine_id, int(limit)))
+    rows = cursor.fetchall()
+    cursor.close()
+
+    history = {}
+    for row in rows:
+        reading_id = row["reading_id"]
+        item = history.setdefault(reading_id, {
+            "reading_id": reading_id,
+            "recorded_at": row["recorded_at"],
+        })
+        item[row["sensor_name"]] = float(row["sensor_value"])
+    return list(history.values())
+
+
 def get_latest_sensor_data(
     connection,
     machine_id
@@ -153,11 +194,13 @@ def get_latest_sensor_data(
     JOIN SENSOR_MEASUREMENT sm
         ON sr.reading_id = sm.reading_id
     WHERE sr.machine_id = %s
-    AND sr.recorded_at = (
-        SELECT MAX(recorded_at)
-        FROM SENSOR_READING
-        WHERE machine_id = %s
-    )
+      AND sr.reading_id = (
+          SELECT sr2.reading_id
+          FROM SENSOR_READING sr2
+          WHERE sr2.machine_id = %s
+          ORDER BY sr2.recorded_at DESC, sr2.reading_id DESC
+          LIMIT 1
+      )
     ORDER BY sm.sensor_name;
     """
 
@@ -549,30 +592,7 @@ def predict_cnc(
     # FAILURE PROBABILITY
     # --------------------------------------------------------
 
-    if hasattr(
-        model,
-        "predict_proba"
-    ):
-
-        probabilities = model.predict_proba(X)[0]
-
-        if len(probabilities) == 2:
-
-            failure_risk = float(
-                probabilities[1]
-            )
-
-        else:
-
-            failure_risk = float(
-                prediction
-            )
-
-    else:
-
-        failure_risk = float(
-            prediction
-        )
+    failure_risk = predict_failure_probability(model, X)
 
 
     # --------------------------------------------------------
@@ -612,199 +632,31 @@ def predict_cnc(
 # ROBOT PREDICTION
 # ============================================================
 
-def predict_robot(
-    model_object,
-    sensor_data
-):
+def predict_robot(model_object, sensor_data, sensor_history=None):
+    """Predict robot risk using recent history to match training-time features."""
+    model = extract_model(model_object)
 
-    model = extract_model(
-        model_object
+    from robot_features import DEFAULT_FEATURES, build_robot_feature_row
+
+    trained_features = None
+    if isinstance(model_object, dict):
+        trained_features = model_object.get("features")
+    if trained_features is None and hasattr(model, "feature_names_in_"):
+        trained_features = list(model.feature_names_in_)
+
+    feature_row = build_robot_feature_row(
+        sensor_data,
+        sensor_history or [],
+        feature_names=trained_features,
     )
-
-
-    position = sensor_data.get(
-        "Position"
-    )
-
-    temperature = sensor_data.get(
-        "Temperature"
-    )
-
-    voltage = sensor_data.get(
-        "Voltage"
-    )
-
-
-    if position is None:
-
-        raise ValueError(
-            "Position sensor data missing."
-        )
-
-
-    if temperature is None:
-
-        raise ValueError(
-            "Temperature sensor data missing."
-        )
-
-
-    if voltage is None:
-
-        raise ValueError(
-            "Voltage sensor data missing."
-        )
-
-
-    position = float(
-        position
-    )
-
-    temperature = float(
-        temperature
-    )
-
-    voltage = float(
-        voltage
-    )
-
-
-    # --------------------------------------------------------
-    # TEMPORAL FEATURES
-    # --------------------------------------------------------
-
-    # Since the current database reading is a single
-    # reading:
-    #
-    # change = 0
-    # rolling mean = current value
-    # rolling std = 0
-
-    X = pd.DataFrame(
-        [[
-
-            position,
-
-            temperature,
-
-            voltage,
-
-            0.0,
-
-            0.0,
-
-            0.0,
-
-            position,
-
-            temperature,
-
-            voltage,
-
-            0.0,
-
-            0.0,
-
-            0.0
-
-        ]],
-        columns=[
-
-            "position",
-
-            "temperature",
-
-            "voltage",
-
-            "position_change",
-
-            "temperature_change",
-
-            "voltage_change",
-
-            "position_rolling_mean",
-
-            "temperature_rolling_mean",
-
-            "voltage_rolling_mean",
-
-            "position_rolling_std",
-
-            "temperature_rolling_std",
-
-            "voltage_rolling_std"
-        ]
-    )
-
-
-    # --------------------------------------------------------
-    # PREDICT
-    # --------------------------------------------------------
-
-    prediction = model.predict(X)[0]
-
-
-    # --------------------------------------------------------
-    # FAILURE PROBABILITY
-    # --------------------------------------------------------
-
-    if hasattr(
-        model,
-        "predict_proba"
-    ):
-
-        probabilities = model.predict_proba(X)[0]
-
-        if len(probabilities) == 2:
-
-            failure_risk = float(
-                probabilities[1]
-            )
-
-        else:
-
-            failure_risk = float(
-                prediction
-            )
-
-    else:
-
-        failure_risk = float(
-            prediction
-        )
-
-
-    # --------------------------------------------------------
-    # HEALTH
-    # --------------------------------------------------------
-
-    health_score = (
-        1 - failure_risk
-    ) * 100
-
-    failure_risk_percent = (
-        failure_risk * 100
-    )
-
-
-    # --------------------------------------------------------
-    # CONDITION
-    # --------------------------------------------------------
-
-    if failure_risk_percent >= 50:
-
-        condition = "FAILURE RISK"
-
-    else:
-
-        condition = "NORMAL"
-
-
-    return (
-        failure_risk_percent,
-        health_score,
-        condition
-    )
+    if not trained_features:
+        trained_features = DEFAULT_FEATURES
+    X = pd.DataFrame([[feature_row[name] for name in trained_features]], columns=trained_features)
+    failure_risk = predict_failure_probability(model, X)
+    failure_risk_percent = failure_risk * 100.0
+    health_score = (1.0 - failure_risk) * 100.0
+    condition = "FAILURE RISK" if failure_risk_percent >= 50 else "NORMAL"
+    return failure_risk_percent, health_score, condition
 
 
 # ============================================================
@@ -1275,7 +1127,8 @@ def process_machine(
                 condition
             ) = predict_robot(
                 model_object,
-                sensor_data
+                sensor_data,
+                get_recent_sensor_history(connection, machine_id)
             )
 
 

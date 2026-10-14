@@ -1,4 +1,6 @@
 import os
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
@@ -9,20 +11,15 @@ import pandas as pd
 # ============================================================
 
 # Path to NASA IMS 1st test dataset
-DATA_FOLDER = os.path.join(
-    "data",
-    "NASA_IMS_Bearings",
-    "4. Bearings",
-    "IMS",
-    "1st_test",
-    "1st_test"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+DATA_FOLDER = (
+    PROJECT_ROOT / "data" / "NASA_IMS_Bearings" / "4. Bearings"
+    / "IMS" / "1st_test" / "1st_test"
 )
 
 # Output file
-OUTPUT_FILE = os.path.join(
-    "data",
-    "nasa_ims_features.csv"
-)
+OUTPUT_FILE = PROJECT_ROOT / "data" / "nasa_ims_features.csv"
 
 
 def calculate_features(signal):

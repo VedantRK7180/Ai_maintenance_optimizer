@@ -2,6 +2,8 @@ import os
 import mysql.connector
 import joblib
 import pandas as pd
+
+from model_utils import predict_failure_probability
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -24,16 +26,16 @@ MODEL_PATH = os.path.join(
 # 2. MYSQL CONNECTION
 # ============================================================
 
-mysql_password = os.getenv("MYSQL_PASSWORD")
+mysql_password = os.getenv("MYSQL_PASSWORD", os.getenv("DB_PASSWORD"))
 if not mysql_password:
     raise RuntimeError("MYSQL_PASSWORD is missing. Add your existing MySQL password to the local .env file.")
 
 connection = mysql.connector.connect(
-    host=os.getenv("MYSQL_HOST", "localhost"),
+    host=os.getenv("MYSQL_HOST", os.getenv("DB_HOST", "localhost")),
     port=int(os.getenv("MYSQL_PORT", "3306")),
-    user=os.getenv("MYSQL_USER", "root"),
+    user=os.getenv("MYSQL_USER", os.getenv("DB_USER", "root")),
     password=mysql_password,
-    database=os.getenv("MYSQL_DATABASE", "AI_Maintenance_DB")
+    database=os.getenv("MYSQL_DATABASE", os.getenv("DB_NAME", "AI_Maintenance_DB"))
 )
 
 print("\n========== DATABASE AI PREDICTION ==========\n")
@@ -186,9 +188,7 @@ input_data = input_data[model_features]
 
 prediction = model.predict(input_data)[0]
 
-probabilities = model.predict_proba(input_data)[0]
-
-failure_risk = probabilities[1] * 100
+failure_risk = predict_failure_probability(model, input_data) * 100
 
 
 # ============================================================
