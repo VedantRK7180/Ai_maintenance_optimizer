@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>What-If Simulator · Maintenance Optimizer</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('dashboard') }}"><span class="brand-mark small">MO</span> Maintenance Optimizer</a>
+    <div class="topbar-right">
+      <a class="ghost-button" href="{{ url_for('dashboard') }}">Dashboard</a>
+      <a class="ghost-button" href="{{ url_for('planner') }}">Maintenance planner</a>
+      <span class="user-chip">{{ session.get('username', 'Manager') }} <span class="role-dot"></span></span>
+      <form method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="ghost-button" type="submit">Log out</button>
+      </form>
+    </div>
+  </header>
+  <main class="page-wrap">
+    <section class="welcome-row">
+      <div>
+        <p class="eyebrow">SCENARIO WORKSPACE</p>
+        <h1>Maintenance What-If Simulator</h1>
+        <p class="muted">Explore hypothetical changes to saved AI scores without changing the database.</p>
+      </div>
+      <span class="live-pill"><span></span> Simulation only</span>
+    </section>
+
+    <div class="notice warning">
+      <strong>Not a prediction:</strong> adjustments below are user-defined arithmetic scenarios, not a model retraining result or validated estimate of maintenance effectiveness. Do not use them alone to authorize operational decisions.
+    </div>
+    {% if db_error %}<div class="notice warning"><strong>Data connection:</strong> {{ db_error }}</div>{% endif %}
+
+    <section class="panel">
+      <div class="panel-heading"><div><h2>Configure a scenario</h2><p class="muted">Choose a machine with a saved AI decision and test hypothetical score adjustments.</p></div></div>
+      {% if decisions %}
+      <form method="get" action="{{ url_for('simulator') }}" class="scenario-form">
+        <label for="machine">Machine</label>
+        <select id="machine" name="machine">
+          {% for item in decisions %}
+            <option value="{{ item.machine_name }}" {% if item.machine_name == selected_name %}selected{% endif %}>{{ item.machine_name }}</option>
+          {% endfor %}
+        </select>
+        <label for="risk_reduction">Hypothetical reduction in risk score (0–100 points)</label>
+        <input id="risk_reduction" name="risk_reduction" type="number" min="0" max="100" step="1" value="{{ risk_reduction }}">
+        <label for="health_gain">Hypothetical increase in health score (0–100 points)</label>
+        <input id="health_gain" name="health_gain" type="number" min="0" max="100" step="1" value="{{ health_gain }}">
+        <button class="primary-button" type="submit">Calculate scenario</button>
+      </form>
+      {% else %}
+        <div class="empty-state"><div class="empty-icon">WF</div><h3>No saved decisions to simulate</h3><p>Run the AI decision engine and ensure it has saved records in AI_DECISION before using this page.</p></div>
+      {% endif %}
+    </section>
+
+    {% if selected %}
+    <section class="stat-grid">
+      <article class="stat-card"><span class="stat-label">Baseline risk score</span><strong class="stat-value">{{ '%.2f'|format(baseline_risk) }}%</strong><span class="stat-foot">Saved AI decision</span></article>
+      <article class="stat-card"><span class="stat-label">Scenario risk score</span><strong class="stat-value">{{ '%.2f'|format(simulated_risk) }}%</strong><span class="stat-foot">After hypothetical reduction</span></article>
+      <article class="stat-card"><span class="stat-label">Baseline health score</span><strong class="stat-value">{{ '%.2f'|format(baseline_health) }}%</strong><span class="stat-foot">Saved AI decision</span></article>
+      <article class="stat-card"><span class="stat-label">Scenario health score</span><strong class="stat-value">{{ '%.2f'|format(simulated_health) }}%</strong><span class="stat-foot">After hypothetical increase</span></article>
+    </section>
+    <section class="panel">
+      <div class="panel-heading"><div><h2>Scenario summary · {{ selected_name }}</h2><p class="muted">These values are illustrative only and are not written back to AI_DECISION.</p></div></div>
+      <div class="table-scroll"><table><thead><tr><th>Metric</th><th>Saved value</th><th>Hypothetical value</th><th>Change</th></tr></thead>
+      <tbody>
+        <tr><td>Risk score</td><td>{{ '%.2f'|format(baseline_risk) }}%</td><td>{{ '%.2f'|format(simulated_risk) }}%</td><td>-{{ '%.2f'|format(baseline_risk - simulated_risk) }} points</td></tr>
+        <tr><td>Health score</td><td>{{ '%.2f'|format(baseline_health) }}%</td><td>{{ '%.2f'|format(simulated_health) }}%</td><td>+{{ '%.2f'|format(simulated_health - baseline_health) }} points</td></tr>
+      </tbody></table></div>
+    </section>
+    {% endif %}
+    <p class="footer-note">AI Maintenance Optimizer · {{ current_year }} · Scenario values are not validated operational forecasts.</p>
+  </main>
+</body>
+</html>
