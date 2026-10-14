@@ -45,7 +45,7 @@
             <option value="{{ item.machine_name }}" {% if item.machine_name == selected_name %}selected{% endif %}>{{ item.machine_name }}</option>
           {% endfor %}
         </select>
-        <label for="risk_reduction">Scenario temperature (°C)</label>
+        <label for="temperature">Scenario temperature (°C)</label>
         <input id="temperature" name="temperature" type="number" min="-273.15" max="500" step="any" value="{{ scenario_values.get('temperature', '') }}">
         <label for="rpm">Scenario rotational speed (RPM)</label>
         <input id="rpm" name="rpm" type="number" min="0" max="100000" step="any" value="{{ scenario_values.get('rpm', '') }}">
@@ -64,7 +64,7 @@
     <section class="stat-grid">
       <article class="stat-card"><span class="stat-label">Baseline risk score</span><strong class="stat-value">{{ '%.2f'|format(baseline_risk) }}%</strong><span class="stat-foot">Model on current sensor values</span></article>
       <article class="stat-card"><span class="stat-label">Scenario risk score</span><strong class="stat-value">{{ '%.2f'|format(simulated_risk) }}%</strong><span class="stat-foot">Model on scenario sensor values</span></article>
-      <article class="stat-card"><span class="stat-label">Baseline health score</span><strong class="stat-value">{{ '%.2f'|format(baseline_health) }}%</strong><span class="stat-foot">Saved AI decision</span></article>
+      <article class="stat-card"><span class="stat-label">Baseline health score</span><strong class="stat-value">{{ ('%.2f'|format(baseline_health)) ~ '%' if baseline_health is not none else 'N/A' }}</strong><span class="stat-foot">Saved AI decision</span></article>
       <article class="stat-card"><span class="stat-label">Scenario health score</span><strong class="stat-value">{{ '%.2f'|format(simulated_health) }}%</strong><span class="stat-foot">Derived as 100 − model risk</span></article>
     </section>
     <section class="panel">
@@ -72,7 +72,7 @@
       <div class="table-scroll"><table><thead><tr><th>Metric</th><th>Saved value</th><th>Hypothetical value</th><th>Change</th></tr></thead>
       <tbody>
         <tr><td>Risk score</td><td>{{ '%.2f'|format(baseline_risk) }}%</td><td>{{ '%.2f'|format(simulated_risk) }}%</td><td>-{{ '%.2f'|format(baseline_risk - simulated_risk) }} points</td></tr>
-        <tr><td>Health score</td><td>{{ '%.2f'|format(baseline_health) }}%</td><td>{{ '%.2f'|format(simulated_health) }}%</td><td>+{{ '%.2f'|format(simulated_health - baseline_health) }} points</td></tr>
+        <tr><td>Health score</td><td>{{ ('%.2f'|format(baseline_health)) ~ '%' if baseline_health is not none else 'N/A' }}</td><td>{{ '%.2f'|format(simulated_health) }}%</td><td>{{ ('+' ~ ('%.2f'|format(simulated_health - baseline_health)) ~ ' points') if baseline_health is not none else 'N/A' }}</td></tr>
       </tbody></table></div>
     </section>
     {% endif %}
