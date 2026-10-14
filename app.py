@@ -384,42 +384,53 @@ def simulator():
         if sensor_error:
             input_error = sensor_error
         else:
-            scenario_values = {
-                "temperature": float(current_values["Temperature"]),
-                "rpm": float(current_values["RPM"]),
-                "torque": float(current_values["Torque"]),
-                "tool_wear": float(current_values["Tool Wear"]),
-            }
-            for key, (sensor_name, label, minimum, maximum) in sensor_fields.items():
-                raw = request.values.get(key)
-                if raw not in (None, ""):
-                    try:
-                        value = float(raw)
-                        if not math.isfinite(value) or value < minimum or value > maximum:
-                            raise ValueError
-                        scenario_values[key] = value
-                    except (TypeError, ValueError):
-                        input_error = f"{label} must be a finite value between {minimum:g} and {maximum:g}."
-                        break
             try:
-                baseline_risk = predict_cnc_risk(current_values)
-                if input_error is None:
-                    hypothetical = {
-                        "Temperature": scenario_values["temperature"],
-                        "RPM": scenario_values["rpm"],
-                        "Torque": scenario_values["torque"],
-                        "Tool Wear": scenario_values["tool_wear"],
-                    }
-                    simulated_risk = predict_cnc_risk(hypothetical)
-                    try:
-                        saved_health = float(selected.get("health_score")) if selected.get("health_score") is not None else None
-                    except (TypeError, ValueError):
-                        saved_health = None
-                    baseline_health = round(saved_health, 2) if saved_health is not None and math.isfinite(saved_health) else None
-                    simulated_health = round(100.0 - simulated_risk, 2)
-            except Exception:
-                app.logger.exception("CNC what-if model inference failed")
-                input_error = input_error or "Model prediction is unavailable. Check the model file and its input features."
+                scenario_values = {
+                    "temperature": float(current_values["Temperature"]),
+                    "rpm": float(current_values["RPM"]),
+                    "torque": float(current_values["Torque"]),
+                    "tool_wear": float(current_values["Tool Wear"]),
+                }
+                for key, (sensor_name, label, minimum, maximum) in sensor_fields.items():
+                    value = scenario_values[key]
+                    if not math.isfinite(value) or value < minimum or value > maximum:
+                        raise ValueError(f"Latest {label.toLowerCase()} is outside the supported range.")
+            except (TypeError, ValueError, OverflowError):
+                app.logger.warning("Latest CNC sensor values are missing, non-numeric, or outside supported bounds for %s", selected_name)
+                input_error = "The latest sensor reading contains invalid values. Check the machine data before simulating."
+                scenario_values = {}
+
+            if input_error is None:
+                for key, (sensor_name, label, minimum, maximum) in sensor_fields.items():
+                    raw = request.values.get(key)
+                    if raw not in (None, ""):
+                        try:
+                            value = float(raw)
+                            if not math.isfinite(value) or value < minimum or value > maximum:
+                                raise ValueError
+                            scenario_values[key] = value
+                        except (TypeError, ValueError):
+                            input_error = f"{label} must be a finite value between {minimum:g} and {maximum:g}."
+                            break
+                try:
+                    baseline_risk = predict_cnc_risk(current_values)
+                    if input_error is None:
+                        hypothetical = {
+                            "Temperature": scenario_values["temperature"],
+                            "RPM": scenario_values["rpm"],
+                            "Torque": scenario_values["torque"],
+                            "Tool Wear": scenario_values["tool_wear"],
+                        }
+                        simulated_risk = predict_cnc_risk(hypothetical)
+                        try:
+                            saved_health = float(selected.get("health_score")) if selected.get("health_score") is not None else None
+                        except (TypeError, ValueError, OverflowError):
+                            saved_health = None
+                        baseline_health = round(saved_health, 2) if saved_health is not None and math.isfinite(saved_health) and 0 <= saved_health <= 100 else None
+                        simulated_health = round(100.0 - simulated_risk, 2)
+                except Exception:
+                    app.logger.exception("CNC what-if model inference failed")
+                    input_error = input_error or "Model prediction is unavailable. Check the model file and its input features."
     return render_template(
         "simulator.html",
         decisions=decisions,
