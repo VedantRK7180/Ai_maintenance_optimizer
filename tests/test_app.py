@@ -169,11 +169,13 @@ def test_simulator_rejects_out_of_range_scenario_values(client, monkeypatch):
         "fetch_latest_cnc_sensor_values",
         lambda name: ({"Temperature": 50, "RPM": 1500, "Torque": 40, "Tool Wear": 100}, None),
     )
-    monkeypatch.setattr("ml.cnc_what_if.predict_cnc_risk", lambda values: 40.0)
+    prediction_calls = []
+    monkeypatch.setattr("ml.cnc_what_if.predict_cnc_risk", lambda values: prediction_calls.append(values) or 40.0)
     client.post("/login", data={"username": "manager", "password": "correct-horse-battery-staple"})
     response = client.get("/simulator?machine=CNC-101&rpm=-5")
     assert response.status_code == 200
     assert b"must be a finite value" in response.data
+    assert prediction_calls == []
 
 
 
