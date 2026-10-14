@@ -57,7 +57,7 @@ From the repository root with the virtual environment activated:
 python -m pytest -q
 ```
 
-The test suite checks the Flask login/dashboard routes and the shared model-risk helper. These tests do not prove that your local MySQL or MongoDB servers are configured correctly; those integrations must be checked separately.
+The test suite checks Flask authentication and dashboard routes, model-risk handling, CNC What-If feature preparation, sensor validation, and helper features. These tests do not prove that your local MySQL or MongoDB servers are configured correctly; those integrations must be checked separately.
 
 ## Model risk interpretation
 
@@ -71,13 +71,13 @@ The shared helper in `ml/model_utils.py` uses the model's class labels to find t
 - Model-file status indicator for `ml/cnc_model_baseline.joblib`.
 - Random Forest risk estimate for the latest available CNC-102 sensor reading, using the same feature preparation approach as `ml/db_predict.py`.
 - A read-only maintenance priority planner based on the latest saved AI decisions per machine.
-- A What-If simulator for bounded, user-defined score adjustments; scenario values are illustrative and never saved to the database.
+- A CNC What-If simulator that runs the saved model on current and hypothetical sensor inputs; scenario values are illustrative and never saved to the database.
 - Optional MongoDB connection settings for the AI decision engine.
 
 ## Notes and limitations
 
 - The planner ranks existing saved AI decisions into suggested review windows. It does not create maintenance records, book calendar slots, assign technicians, reserve spare parts, or write to maintenance tables. Those operations must be added only after the exact local schema is verified.
-- The What-If simulator subtracts a user-entered number from the saved risk score and adds a user-entered number to the saved health score, clamping values to 0–100. This is arithmetic scenario exploration, not a model prediction or validated estimate of treatment effect.
+- The CNC What-If simulator runs model inference for both the latest CNC sensor reading and the hypothetical values entered by the manager. Its displayed scenario health is calculated as 100 minus the model risk, while baseline health comes from the latest saved AI decision. The simulator assumes machine type `M` and estimates process temperature as air temperature +10 K because those inputs are not currently stored as independent measurements. Treat these as modelling assumptions, not calibrated or live operational truth. Scenario values are not written to the database.
 - The CNC-102 risk estimate depends on the model file, the four expected sensor names, and the database schema being available. It is a model estimate, not a guarantee of failure.
 - The MySQL queries assume the table names and columns used by the existing ML script. If your database schema differs, adjust `fetch_machine_summary()` in `app.py`.
 - Keep `FLASK_DEBUG=false` outside local development. For deployment, use HTTPS and set `COOKIE_SECURE=true`.
