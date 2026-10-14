@@ -219,7 +219,7 @@ def test_prediction_errors_do_not_expose_internal_exception_text(client, monkeyp
         def close(self):
             pass
 
-    monkeypatch.setattr(dashboard_app, "MODEL_PATH", type("ExistingModelPath", (), {"exists": lambda self: True})())
+    monkeypatch.setattr(dashboard_app, "MODEL_PATH", type("ExistingModelPath", (), {"exists": lambda self: True, "is_file": lambda self: True})())
     monkeypatch.setattr(dashboard_app, "get_mysql_connection", lambda: (FakeConnection(), None))
     monkeypatch.setattr(
         "joblib.load",
