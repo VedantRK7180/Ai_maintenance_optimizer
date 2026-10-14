@@ -170,9 +170,11 @@ def predict_machine_risk(machine_name="CNC-102"):
             JOIN SENSOR_MEASUREMENT sm ON sr.reading_id = sm.reading_id
             WHERE m.machine_name = %s
               AND sr.reading_id = (
-                  SELECT MAX(sr2.reading_id)
+                  SELECT sr2.reading_id
                   FROM SENSOR_READING sr2
                   WHERE sr2.machine_id = m.machine_id
+                  ORDER BY sr2.recorded_at DESC, sr2.reading_id DESC
+                  LIMIT 1
               )
             ORDER BY sm.sensor_name
         """, (machine_name,))
