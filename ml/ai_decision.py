@@ -143,6 +143,37 @@ def get_machines(connection):
 # GET LATEST SENSOR DATA
 # ============================================================
 
+def get_recent_sensor_history(connection, machine_id, limit=10):
+    """Return recent complete sensor readings for robot time-series features."""
+    cursor = connection.cursor(dictionary=True)
+    query = """
+    SELECT sr.reading_id, sr.recorded_at, sm.sensor_name, sm.sensor_value
+    FROM SENSOR_READING sr
+    JOIN SENSOR_MEASUREMENT sm ON sm.reading_id = sr.reading_id
+    JOIN (
+        SELECT reading_id, recorded_at
+        FROM SENSOR_READING
+        WHERE machine_id = %s
+        ORDER BY recorded_at DESC, reading_id DESC
+        LIMIT %s
+    ) recent ON recent.reading_id = sr.reading_id
+    ORDER BY sr.recorded_at ASC, sr.reading_id ASC, sm.sensor_name ASC;
+    """
+    cursor.execute(query, (machine_id, int(limit)))
+    rows = cursor.fetchall()
+    cursor.close()
+
+    history = {}
+    for row in rows:
+        reading_id = row["reading_id"]
+        item = history.setdefault(reading_id, {
+            "reading_id": reading_id,
+            "recorded_at": row["recorded_at"],
+        })
+        item[row["sensor_name"]] = float(row["sensor_value"])
+    return list(history.values())
+
+
 def get_latest_sensor_data(
     connection,
     machine_id
@@ -599,176 +630,69 @@ def predict_cnc(
 # ROBOT PREDICTION
 # ============================================================
 
-def predict_robot(
-    model_object,
-    sensor_data
-):
+def predict_robot(model_object, sensor_data, sensor_history=None):
+    """Predict robot risk using recent history to match training-time features."""
+    model = extract_model(model_object)
 
-    model = extract_model(
-        model_object
-    )
+    required = ("Position", "Temperature", "Voltage")
+    missing = [name for name in required if sensor_data.get(name) is None]
+    if missing:
+        raise ValueError("Robot sensor data missing: " + ", ".join(missing))
 
+    current = {
+        "position": float(sensor_data["Position"]),
+        "temperature": float(sensor_data["Temperature"]),
+        "voltage": float(sensor_data["Voltage"]),
+    }
 
-    position = sensor_data.get(
-        "Position"
-    )
+    # Include only history records that contain all three model sensors.
+    complete_history = []
+    for reading in sensor_history or []:
+        if all(reading.get(name) is not None for name in required):
+            complete_history.append({
+                "position": float(reading["Position"]),
+                "temperature": float(reading["Temperature"]),
+                "voltage": float(reading["Voltage"]),
+            })
 
-    temperature = sensor_data.get(
-        "Temperature"
-    )
+    if not complete_history or complete_history[-1] != current:
+        complete_history.append(current)
+    complete_history = complete_history[-10:]
 
-    voltage = sensor_data.get(
-        "Voltage"
-    )
-
-
-    if position is None:
-
-        raise ValueError(
-            "Position sensor data missing."
+    frame = pd.DataFrame(complete_history)
+    feature_row = {}
+    for column in ("position", "temperature", "voltage"):
+        values = frame[column]
+        feature_row[column] = float(values.iloc[-1])
+        feature_row[f"{column}_change"] = (
+            float(values.iloc[-1] - values.iloc[-2]) if len(values) >= 2 else 0.0
         )
+        feature_row[f"{column}_rolling_mean"] = float(values.mean())
+        feature_row[f"{column}_rolling_std"] = float(values.std(ddof=1)) if len(values) >= 2 else 0.0
 
-
-    if temperature is None:
-
-        raise ValueError(
-            "Temperature sensor data missing."
-        )
-
-
-    if voltage is None:
-
-        raise ValueError(
-            "Voltage sensor data missing."
-        )
-
-
-    position = float(
-        position
-    )
-
-    temperature = float(
-        temperature
-    )
-
-    voltage = float(
-        voltage
-    )
-
-
-    # --------------------------------------------------------
-    # TEMPORAL FEATURES
-    # --------------------------------------------------------
-
-    # Since the current database reading is a single
-    # reading:
-    #
-    # change = 0
-    # rolling mean = current value
-    # rolling std = 0
-
-    X = pd.DataFrame(
-        [[
-
-            position,
-
-            temperature,
-
-            voltage,
-
-            0.0,
-
-            0.0,
-
-            0.0,
-
-            position,
-
-            temperature,
-
-            voltage,
-
-            0.0,
-
-            0.0,
-
-            0.0
-
-        ]],
-        columns=[
-
-            "position",
-
-            "temperature",
-
-            "voltage",
-
-            "position_change",
-
-            "temperature_change",
-
-            "voltage_change",
-
-            "position_rolling_mean",
-
-            "temperature_rolling_mean",
-
-            "voltage_rolling_mean",
-
-            "position_rolling_std",
-
-            "temperature_rolling_std",
-
-            "voltage_rolling_std"
+    trained_features = None
+    if isinstance(model_object, dict):
+        trained_features = model_object.get("features")
+    if trained_features is None and hasattr(model, "feature_names_in_"):
+        trained_features = list(model.feature_names_in_)
+    if not trained_features:
+        trained_features = [
+            "position", "temperature", "voltage",
+            "position_change", "temperature_change", "voltage_change",
+            "position_rolling_mean", "temperature_rolling_mean", "voltage_rolling_mean",
+            "position_rolling_std", "temperature_rolling_std", "voltage_rolling_std",
         ]
-    )
 
+    missing_features = [name for name in trained_features if name not in feature_row]
+    if missing_features:
+        raise ValueError("Missing robot model features: " + ", ".join(missing_features))
 
-    # --------------------------------------------------------
-    # PREDICT
-    # --------------------------------------------------------
-
-    prediction = model.predict(X)[0]
-
-
-    # --------------------------------------------------------
-    # FAILURE PROBABILITY
-    # --------------------------------------------------------
-
+    X = pd.DataFrame([[feature_row[name] for name in trained_features]], columns=trained_features)
     failure_risk = predict_failure_probability(model, X)
-
-
-    # --------------------------------------------------------
-    # HEALTH
-    # --------------------------------------------------------
-
-    health_score = (
-        1 - failure_risk
-    ) * 100
-
-    failure_risk_percent = (
-        failure_risk * 100
-    )
-
-
-    # --------------------------------------------------------
-    # CONDITION
-    # --------------------------------------------------------
-
-    if failure_risk_percent >= 50:
-
-        condition = "FAILURE RISK"
-
-    else:
-
-        condition = "NORMAL"
-
-
-    return (
-        failure_risk_percent,
-        health_score,
-        condition
-    )
+    failure_risk_percent = failure_risk * 100.0
+    health_score = (1.0 - failure_risk) * 100.0
+    condition = "FAILURE RISK" if failure_risk_percent >= 50 else "NORMAL"
+    return failure_risk_percent, health_score, condition
 
 
 # ============================================================
@@ -1239,7 +1163,8 @@ def process_machine(
                 condition
             ) = predict_robot(
                 model_object,
-                sensor_data
+                sensor_data,
+                get_recent_sensor_history(connection, machine_id)
             )
 
 
