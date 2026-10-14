@@ -171,13 +171,15 @@ print(
     classification_report(
         y_test,
         y_pred,
-        target_names=["NORMAL", "FAILURE"]
+        labels=[0, 1],
+        target_names=["NORMAL", "FAILURE"],
+        zero_division=0,
     )
 )
 
 print("Confusion Matrix:")
 
-print(confusion_matrix(y_test, y_pred))
+print(confusion_matrix(y_test, y_pred, labels=[0, 1]))
 
 
 # ============================================================
