@@ -24,18 +24,19 @@
       <div>
         <p class="eyebrow">SCENARIO WORKSPACE</p>
         <h1>Maintenance What-If Simulator</h1>
-        <p class="muted">Explore hypothetical changes to saved AI scores without changing the database.</p>
+        <p class="muted">Compare the CNC model's output for latest sensor readings and hypothetical sensor values.</p>
       </div>
       <span class="live-pill"><span></span> Simulation only</span>
     </section>
 
     <div class="notice warning">
-      <strong>Not a prediction:</strong> adjustments below are user-defined arithmetic scenarios, not a model retraining result or validated estimate of maintenance effectiveness. Do not use them alone to authorize operational decisions.
+      <strong>Model-based scenario only:</strong> the existing CNC classifier runs on current and hypothetical sensor values. This is not a guarantee of real-world outcomes.
     </div>
     {% if db_error %}<div class="notice warning"><strong>Data connection:</strong> {{ db_error }}</div>{% endif %}
+    {% if input_error %}<div class="notice warning"><strong>Simulation unavailable:</strong> {{ input_error }}</div>{% endif %}
 
     <section class="panel">
-      <div class="panel-heading"><div><h2>Configure a scenario</h2><p class="muted">Choose a machine with a saved AI decision and test hypothetical score adjustments.</p></div></div>
+      <div class="panel-heading"><div><h2>Configure a scenario</h2><p class="muted">Choose a CNC machine and enter any hypothetical sensor values. Leave values unchanged to use current readings.</p></div></div>
       {% if decisions %}
       <form method="get" action="{{ url_for('simulator') }}" class="scenario-form">
         <label for="machine">Machine</label>
@@ -44,11 +45,15 @@
             <option value="{{ item.machine_name }}" {% if item.machine_name == selected_name %}selected{% endif %}>{{ item.machine_name }}</option>
           {% endfor %}
         </select>
-        <label for="risk_reduction">Hypothetical reduction in risk score (0–100 points)</label>
-        <input id="risk_reduction" name="risk_reduction" type="number" min="0" max="100" step="1" value="{{ risk_reduction }}">
-        <label for="health_gain">Hypothetical increase in health score (0–100 points)</label>
-        <input id="health_gain" name="health_gain" type="number" min="0" max="100" step="1" value="{{ health_gain }}">
-        <button class="primary-button" type="submit">Calculate scenario</button>
+        <label for="risk_reduction">Scenario temperature (°C)</label>
+        <input id="temperature" name="temperature" type="number" min="-273.15" max="500" step="any" value="{{ scenario_values.get('temperature', '') }}">
+        <label for="rpm">Scenario rotational speed (RPM)</label>
+        <input id="rpm" name="rpm" type="number" min="0" max="100000" step="any" value="{{ scenario_values.get('rpm', '') }}">
+        <label for="torque">Scenario torque (Nm)</label>
+        <input id="torque" name="torque" type="number" min="0" max="10000" step="any" value="{{ scenario_values.get('torque', '') }}">
+        <label for="tool_wear">Scenario tool wear (min)</label>
+        <input id="tool_wear" name="tool_wear" type="number" min="0" max="100000" step="any" value="{{ scenario_values.get('tool_wear', '') }}">
+        <button class="primary-button" type="submit">Run model scenario</button>
       </form>
       {% else %}
         <div class="empty-state"><div class="empty-icon">WF</div><h3>No saved decisions to simulate</h3><p>Run the AI decision engine and ensure it has saved records in AI_DECISION before using this page.</p></div>
@@ -57,13 +62,13 @@
 
     {% if selected %}
     <section class="stat-grid">
-      <article class="stat-card"><span class="stat-label">Baseline risk score</span><strong class="stat-value">{{ '%.2f'|format(baseline_risk) }}%</strong><span class="stat-foot">Saved AI decision</span></article>
-      <article class="stat-card"><span class="stat-label">Scenario risk score</span><strong class="stat-value">{{ '%.2f'|format(simulated_risk) }}%</strong><span class="stat-foot">After hypothetical reduction</span></article>
+      <article class="stat-card"><span class="stat-label">Baseline risk score</span><strong class="stat-value">{{ '%.2f'|format(baseline_risk) }}%</strong><span class="stat-foot">Model on current sensor values</span></article>
+      <article class="stat-card"><span class="stat-label">Scenario risk score</span><strong class="stat-value">{{ '%.2f'|format(simulated_risk) }}%</strong><span class="stat-foot">Model on scenario sensor values</span></article>
       <article class="stat-card"><span class="stat-label">Baseline health score</span><strong class="stat-value">{{ '%.2f'|format(baseline_health) }}%</strong><span class="stat-foot">Saved AI decision</span></article>
-      <article class="stat-card"><span class="stat-label">Scenario health score</span><strong class="stat-value">{{ '%.2f'|format(simulated_health) }}%</strong><span class="stat-foot">After hypothetical increase</span></article>
+      <article class="stat-card"><span class="stat-label">Scenario health score</span><strong class="stat-value">{{ '%.2f'|format(simulated_health) }}%</strong><span class="stat-foot">Derived as 100 − model risk</span></article>
     </section>
     <section class="panel">
-      <div class="panel-heading"><div><h2>Scenario summary · {{ selected_name }}</h2><p class="muted">These values are illustrative only and are not written back to AI_DECISION.</p></div></div>
+      <div class="panel-heading"><div><h2>Scenario summary · {{ selected_name }}</h2><p class="muted">Model inference is read-only and is not written back to any database.</p></div></div>
       <div class="table-scroll"><table><thead><tr><th>Metric</th><th>Saved value</th><th>Hypothetical value</th><th>Change</th></tr></thead>
       <tbody>
         <tr><td>Risk score</td><td>{{ '%.2f'|format(baseline_risk) }}%</td><td>{{ '%.2f'|format(simulated_risk) }}%</td><td>-{{ '%.2f'|format(baseline_risk - simulated_risk) }} points</td></tr>
@@ -71,7 +76,7 @@
       </tbody></table></div>
     </section>
     {% endif %}
-    <p class="footer-note">AI Maintenance Optimizer · {{ current_year }} · Scenario values are not validated operational forecasts.</p>
+    <p class="footer-note">AI Maintenance Optimizer · {{ current_year }} · Scenario inference is not a validated operational forecast.</p>
   </main>
 </body>
 </html>
