@@ -70,3 +70,50 @@ def test_login_dashboard_and_logout(client, monkeypatch):
 
     protected = client.get("/dashboard")
     assert protected.status_code == 302
+
+
+
+def test_planner_requires_login(client):
+    response = client.get("/planner")
+    assert response.status_code == 302
+    assert "/login" in response.headers["Location"]
+
+
+def test_planner_ranks_saved_decisions(client, monkeypatch):
+    create_user()
+    decisions = [
+        {
+            "machine_name": "CNC-101",
+            "urgency_score": 35.0,
+            "failure_risk": 20.0,
+            "health_score": 80.0,
+            "urgency_level": "LOW",
+            "recommendation": "Monitor",
+            "decision_time": "2026-01-01 10:00:00",
+            "model_key": "test",
+        },
+        {
+            "machine_name": "CNC-103",
+            "urgency_score": 72.0,
+            "failure_risk": 81.0,
+            "health_score": 19.0,
+            "urgency_level": "HIGH",
+            "recommendation": "Inspect immediately",
+            "decision_time": "2026-01-01 11:00:00",
+            "model_key": "test",
+        },
+    ]
+    monkeypatch.setattr(
+        dashboard_app,
+        "fetch_machine_summary",
+        lambda: ([], [], decisions, None),
+    )
+    client.post(
+        "/login",
+        data={"username": "manager", "password": "correct-horse-battery-staple"},
+    )
+    response = client.get("/planner")
+    assert response.status_code == 200
+    assert b"Maintenance priority planner" in response.data
+    assert response.data.index(b"CNC-103") < response.data.index(b"CNC-101")
+    assert b"Read-only recommendations" in response.data
