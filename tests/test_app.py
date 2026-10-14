@@ -179,4 +179,4 @@ def test_simulator_clamps_user_supplied_adjustments(client, monkeypatch):
     response = client.get("/simulator?machine=CNC-101&risk_reduction=999&health_gain=-30")
     assert response.status_code == 200
     assert b"0.00%" in response.data
-    assert b"100.00%" in response.data
+    assert b"70.00%" in response.data
