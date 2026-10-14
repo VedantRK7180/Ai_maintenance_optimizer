@@ -80,14 +80,18 @@ def get_mysql_connection():
         return None, f"Could not connect to MySQL: {exc}"
 
 def fetch_machine_summary():
+    """Read machine, sensor, and latest AI decision data without changing the schema."""
     connection, error = get_mysql_connection()
     if connection is None:
-        return [], [], error
-    machines, readings = [], []
+        return [], [], [], error
+
+    machines, readings, decisions = [], [], []
+    warnings = []
     try:
         cursor = connection.cursor(dictionary=True)
         cursor.execute("SELECT * FROM MACHINE ORDER BY machine_id")
         machines = cursor.fetchall()
+
         cursor.execute("""
             SELECT
                 m.machine_name,
@@ -103,10 +107,40 @@ def fetch_machine_summary():
             LIMIT 100
         """)
         readings = cursor.fetchall()
+
+        try:
+            cursor.execute("""
+                SELECT
+                    d.decision_id,
+                    m.machine_name,
+                    d.decision_time,
+                    d.failure_risk,
+                    d.health_score,
+                    d.urgency_score,
+                    d.urgency_level,
+                    d.recommendation,
+                    d.model_key
+                FROM AI_DECISION d
+                JOIN MACHINE m ON m.machine_id = d.machine_id
+                JOIN (
+                    SELECT machine_id, MAX(decision_time) AS latest_time
+                    FROM AI_DECISION
+                    GROUP BY machine_id
+                ) latest
+                  ON latest.machine_id = d.machine_id
+                 AND latest.latest_time = d.decision_time
+                ORDER BY d.urgency_score DESC, d.failure_risk DESC
+                LIMIT 50
+            """)
+            decisions = cursor.fetchall()
+        except Exception as exc:
+            warnings.append(f"AI decisions are unavailable: {exc}")
+
         cursor.close()
-        return machines, readings, None
+        warning = "; ".join(warnings) if warnings else None
+        return machines, readings, decisions, warning
     except Exception as exc:
-        return [], [], f"Connected to MySQL, but the expected MACHINE / SENSOR_READING / SENSOR_MEASUREMENT tables could not be read: {exc}"
+        return [], [], [], f"Could not read the expected machine/sensor tables: {exc}"
     finally:
         connection.close()
 
@@ -220,12 +254,13 @@ def login():
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    machines, readings, db_error = fetch_machine_summary()
+    machines, readings, decisions, db_error = fetch_machine_summary()
     prediction, prediction_error = predict_machine_risk()
     return render_template(
         "dashboard.html",
         machines=machines,
         readings=readings,
+        decisions=decisions,
         db_error=db_error,
         prediction=prediction,
         prediction_error=prediction_error,
