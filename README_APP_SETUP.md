@@ -49,6 +49,20 @@ flask --app app run
 
 Open http://127.0.0.1:5000 and sign in with the manager account.
 
+## 5. Run the automated tests
+
+From the repository root with the virtual environment activated:
+
+```powershell
+python -m pytest -q
+```
+
+The test suite checks the Flask login/dashboard routes and the shared model-risk helper. These tests do not prove that your local MySQL or MongoDB servers are configured correctly; those integrations must be checked separately.
+
+## Model risk interpretation
+
+The shared helper in `ml/model_utils.py` uses the model's class labels to find the failure probability rather than assuming a fixed probability-column order. If a model uses labels that do not clearly identify normal and failure, it raises an error instead of silently reporting a potentially misleading risk. Review the class labels and training target definition for every deployed model.
+
 ## What is included
 
 - Login/logout with password hashing, server-side session checks and CSRF protection on forms.
