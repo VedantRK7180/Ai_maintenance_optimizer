@@ -5,8 +5,11 @@ import mysql.connector
 import pandas as pd
 from dotenv import load_dotenv
 
+from dotenv import load_dotenv
 from pymongo import MongoClient
 from datetime import datetime, timezone
+
+load_dotenv()
 
 
 # ============================================================
@@ -35,6 +38,7 @@ load_dotenv(os.path.join(BASE_DIR, ".env"))
 # ============================================================
 
 from fuzzy_logic import calculate_urgency
+from model_utils import predict_failure_probability
 from bearing_model import predict_latest_bearing
 from model_utils import predict_failure_probability
 
@@ -50,7 +54,17 @@ DB_CONFIG = {
     "password": os.getenv("MYSQL_PASSWORD", ""),
     "database": os.getenv("MYSQL_DATABASE", "AI_Maintenance_DB"),
     "connection_timeout": int(os.getenv("MYSQL_CONNECT_TIMEOUT", "5")),
+    "host": os.getenv("MYSQL_HOST", os.getenv("DB_HOST", "localhost")),
+    "port": int(os.getenv("MYSQL_PORT", "3306")),
+    "user": os.getenv("MYSQL_USER", os.getenv("DB_USER", "root")),
+    "password": os.getenv("MYSQL_PASSWORD", os.getenv("DB_PASSWORD", "")),
+    "database": os.getenv("MYSQL_DATABASE", os.getenv("DB_NAME", "AI_Maintenance_DB")),
 }
+
+if not DB_CONFIG["password"]:
+    raise RuntimeError(
+        "MySQL password is missing. Set MYSQL_PASSWORD (or DB_PASSWORD) in your local .env file."
+    )
 
 
 # ============================================================
@@ -141,6 +155,37 @@ def get_machines(connection):
 # GET LATEST SENSOR DATA
 # ============================================================
 
+def get_recent_sensor_history(connection, machine_id, limit=10):
+    """Return recent complete sensor readings for robot time-series features."""
+    cursor = connection.cursor(dictionary=True)
+    query = """
+    SELECT sr.reading_id, sr.recorded_at, sm.sensor_name, sm.sensor_value
+    FROM SENSOR_READING sr
+    JOIN SENSOR_MEASUREMENT sm ON sm.reading_id = sr.reading_id
+    JOIN (
+        SELECT reading_id, recorded_at
+        FROM SENSOR_READING
+        WHERE machine_id = %s
+        ORDER BY recorded_at DESC, reading_id DESC
+        LIMIT %s
+    ) recent ON recent.reading_id = sr.reading_id
+    ORDER BY sr.recorded_at ASC, sr.reading_id ASC, sm.sensor_name ASC;
+    """
+    cursor.execute(query, (machine_id, int(limit)))
+    rows = cursor.fetchall()
+    cursor.close()
+
+    history = {}
+    for row in rows:
+        reading_id = row["reading_id"]
+        item = history.setdefault(reading_id, {
+            "reading_id": reading_id,
+            "recorded_at": row["recorded_at"],
+        })
+        item[row["sensor_name"]] = float(row["sensor_value"])
+    return list(history.values())
+
+
 def get_latest_sensor_data(
     connection,
     machine_id
@@ -168,6 +213,13 @@ def get_latest_sensor_data(
         ORDER BY sr2.recorded_at DESC, sr2.reading_id DESC
         LIMIT 1
     )
+      AND sr.reading_id = (
+          SELECT sr2.reading_id
+          FROM SENSOR_READING sr2
+          WHERE sr2.machine_id = %s
+          ORDER BY sr2.recorded_at DESC, sr2.reading_id DESC
+          LIMIT 1
+      )
     ORDER BY sm.sensor_name;
     """
 
@@ -623,6 +675,9 @@ def predict_cnc(
 
     failure_risk = predict_failure_probability(model, X)
 
+    # --------------------------------------------------------
+
+    failure_risk = predict_failure_probability(model, X)
 
     # HEALTH SCORE
     # --------------------------------------------------------
@@ -670,14 +725,17 @@ def predict_robot(
         model_object
     )
 
+def predict_robot(model_object, sensor_data, sensor_history=None):
+    """Predict robot risk using recent history to match training-time features."""
+    model = extract_model(model_object)
 
-    position = sensor_data.get(
-        "Position"
-    )
+    from robot_features import DEFAULT_FEATURES, build_robot_feature_row
 
-    temperature = sensor_data.get(
-        "Temperature"
-    )
+    trained_features = None
+    if isinstance(model_object, dict):
+        trained_features = model_object.get("features")
+    if trained_features is None and hasattr(model, "feature_names_in_"):
+        trained_features = list(model.feature_names_in_)
 
     voltage = sensor_data.get(
         "Voltage"
@@ -812,7 +870,19 @@ def predict_robot(
         failure_risk_percent,
         health_score,
         condition
+    feature_row = build_robot_feature_row(
+        sensor_data,
+        sensor_history or [],
+        feature_names=trained_features,
     )
+    if not trained_features:
+        trained_features = DEFAULT_FEATURES
+    X = pd.DataFrame([[feature_row[name] for name in trained_features]], columns=trained_features)
+    failure_risk = predict_failure_probability(model, X)
+    failure_risk_percent = failure_risk * 100.0
+    health_score = (1.0 - failure_risk) * 100.0
+    condition = "FAILURE RISK" if failure_risk_percent >= 50 else "NORMAL"
+    return failure_risk_percent, health_score, condition
 
 
 # ============================================================
@@ -1292,6 +1362,7 @@ def process_machine(
                 model_object,
                 sensor_data,
                 sensor_history,
+                get_recent_sensor_history(connection, machine_id)
             )
 
 

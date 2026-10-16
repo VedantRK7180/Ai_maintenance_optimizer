@@ -11,6 +11,9 @@ from pymongo import MongoClient
 from fuzzy_logic import calculate_urgency
 from model_utils import predict_failure_probability
 
+BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")
+
 
 # ============================================================
 # SETTINGS
@@ -26,6 +29,13 @@ MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
 MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", "AI_Maintenance_DB")
 
 MODEL_FILE = PROJECT_ROOT / "ml" / "cnc_model_baseline.joblib"
+MYSQL_HOST = os.getenv("MYSQL_HOST", os.getenv("DB_HOST", "localhost"))
+MYSQL_USER = os.getenv("MYSQL_USER", os.getenv("DB_USER", "root"))
+MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", os.getenv("DB_PASSWORD", ""))
+MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", os.getenv("DB_NAME", "AI_Maintenance_DB"))
+MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
+
+MODEL_FILE = Path(os.getenv("CNC_MODEL_PATH", str(BASE_DIR / "ml" / "cnc_model_baseline.joblib")))
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
 MONGO_DATABASE = os.getenv("MONGO_DATABASE", "AI_Maintenance_Mongo")
@@ -43,6 +53,11 @@ print("=" * 70)
 
 print()
 print("Loading AI model...")
+
+if not MYSQL_PASSWORD:
+    raise RuntimeError(
+        "MySQL password is not configured. Set MYSQL_PASSWORD (or DB_PASSWORD) in your local .env file."
+    )
 
 model_data = joblib.load(MODEL_FILE)
 
@@ -107,6 +122,8 @@ connection = mysql.connector.connect(
     password=MYSQL_PASSWORD,
     database=MYSQL_DATABASE,
     connection_timeout=5,
+    port=MYSQL_PORT,
+    connection_timeout=5
 )
 
 print("MySQL connected successfully.")
