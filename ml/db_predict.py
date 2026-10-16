@@ -1,12 +1,14 @@
 import os
+from pathlib import Path
 import mysql.connector
 import joblib
 import pandas as pd
 
 from model_utils import predict_failure_probability
 from dotenv import load_dotenv
+from model_utils import predict_failure_probability
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 
 # ============================================================

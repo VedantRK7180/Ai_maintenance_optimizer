@@ -11,6 +11,8 @@ from flask import Flask, flash, redirect, render_template, request, session, url
 from flask_wtf.csrf import CSRFProtect
 
 from ml.model_utils import predict_failure_probability
+
+load_dotenv()
 from werkzeug.security import check_password_hash
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -72,7 +74,7 @@ def get_mysql_connection():
             host=host,
             port=int(port),
             user=user,
-            password=password,
+            password=#123Vrk7,
             database=database,
             connection_timeout=5,
         )
@@ -197,6 +199,15 @@ def predict_machine_risk(machine_name="CNC-102"):
 
         input_data = build_cnc_model_input(sensor_data, list(model_features))
         prediction = int(model.predict(input_data)[0])
+        failure_probability = predict_failure_probability(model, input_data)
+        return {
+            "machine_name": machine_name,
+            "condition": "FAILURE RISK" if prediction == 1 else "NORMAL",
+            "risk": round(failure_probability * 100, 2),
+            "temperature": sensor_data["Temperature"],
+            "rpm": sensor_data["RPM"],
+            "torque": sensor_data["Torque"],
+            "tool_wear": sensor_data["Tool Wear"],
         risk = predict_failure_probability(model, input_data)
         return {
             "machine_name": machine_name,

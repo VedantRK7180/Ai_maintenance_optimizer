@@ -1,6 +1,7 @@
 import os
 import joblib
 import pandas as pd
+from model_utils import predict_failure_probability
 
 from ml.model_utils import predict_failure_probability
 

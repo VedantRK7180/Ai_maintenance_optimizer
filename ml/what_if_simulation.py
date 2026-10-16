@@ -5,6 +5,7 @@ import mysql.connector
 import joblib
 import pandas as pd
 from dotenv import load_dotenv
+
 from pymongo import MongoClient
 
 from fuzzy_logic import calculate_urgency
@@ -18,6 +19,16 @@ load_dotenv(BASE_DIR / ".env")
 # SETTINGS
 # ============================================================
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(PROJECT_ROOT / ".env")
+
+MYSQL_HOST = os.getenv("MYSQL_HOST", "127.0.0.1")
+MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
+MYSQL_USER = os.getenv("MYSQL_USER", "")
+MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
+MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", "AI_Maintenance_DB")
+
+MODEL_FILE = PROJECT_ROOT / "ml" / "cnc_model_baseline.joblib"
 MYSQL_HOST = os.getenv("MYSQL_HOST", os.getenv("DB_HOST", "localhost"))
 MYSQL_USER = os.getenv("MYSQL_USER", os.getenv("DB_USER", "root"))
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", os.getenv("DB_PASSWORD", ""))
@@ -101,11 +112,16 @@ print(
 print()
 print("Connecting to MySQL...")
 
+if not MYSQL_USER or not MYSQL_PASSWORD:
+    raise RuntimeError("Set MYSQL_USER and MYSQL_PASSWORD in your .env file.")
+
 connection = mysql.connector.connect(
     host=MYSQL_HOST,
+    port=MYSQL_PORT,
     user=MYSQL_USER,
     password=MYSQL_PASSWORD,
     database=MYSQL_DATABASE,
+    connection_timeout=5,
     port=MYSQL_PORT,
     connection_timeout=5
 )
