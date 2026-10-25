@@ -53,7 +53,7 @@
 
     <section class="panel" id="mysql">
       <div class="panel-heading">
-        <div><h2>MySQL tables</h2><p class="muted">Shows {{ table.shown }} matching rows from page {{ table.page }} of {{ table.pages }} ({{ table.total }} total).</p></div>
+        <div><h2>MySQL tables</h2><p class="muted">Browse database tables page by page. Each table shows its total record count.</p></div>
         <span class="count-pill">{{ mysql_tables|length }} tables</span>
       </div>
       {% if mysql_error %}
