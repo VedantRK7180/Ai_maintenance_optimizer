@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Database Explorer · Maintenance Optimizer</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    .db-tabs { display:flex; flex-wrap:wrap; gap:.5rem; margin:1rem 0; }
+    .db-table { margin-top:1rem; }
+    .db-json { margin:.35rem 0; padding:.75rem; border-radius:.5rem; background:rgba(127,127,127,.09); overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; }
+    .db-table h3 { margin-bottom:.35rem; }
+    .db-count { font-size:.85rem; opacity:.8; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('dashboard') }}"><span class="brand-mark small">MO</span> Maintenance Optimizer</a>
+    <div class="topbar-right">
+      <a class="ghost-button" href="{{ url_for('dashboard') }}">Dashboard</a>
+      <a class="ghost-button" href="{{ url_for('planner') }}">Maintenance planner</a>
+      <a class="ghost-button" href="{{ url_for('simulator') }}">What-If simulator</a>
+      <span class="user-chip">{{ session.get('username', 'Manager') }} <span class="role-dot"></span></span>
+      <form method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="ghost-button" type="submit">Log out</button>
+      </form>
+    </div>
+  </header>
+  <main class="page-wrap">
+    <section class="welcome-row">
+      <div>
+        <p class="eyebrow">READ-ONLY DATA VIEW</p>
+        <h1>Database explorer</h1>
+        <p class="muted">Browse records from your configured MySQL database and MongoDB collections. This page does not modify stored data.</p>
+      </div>
+      <span class="live-pill"><span></span> Read-only</span>
+    </section>
+
+    <div class="db-tabs">
+      <a class="ghost-button" href="#mysql">MySQL tables ({{ mysql_tables|length }})</a>
+      <a class="ghost-button" href="#mongodb">MongoDB collections ({{ mongo_collections|length }})</a>
+    </div>
+
+    <section class="panel" id="mysql">
+      <div class="panel-heading">
+        <div><h2>MySQL tables</h2><p class="muted">Shows up to 100 rows per table to keep the page responsive.</p></div>
+        <span class="count-pill">{{ mysql_tables|length }} tables</span>
+      </div>
+      {% if mysql_error %}
+        <div class="notice warning"><strong>MySQL:</strong> {{ mysql_error }}</div>
+      {% elif mysql_tables %}
+        {% for table in mysql_tables %}
+          <div class="db-table">
+            <div class="panel-heading">
+              <h3>{{ table.name }}</h3>
+              <span class="db-count">{{ table.shown }} rows shown (maximum 100)</span>
+            </div>
+            {% if table.rows %}
+              <div class="table-scroll">
+                <table>
+                  <thead><tr>{% for column in table.columns %}<th>{{ column.replace('_', ' ')|title }}</th>{% endfor %}</tr></thead>
+                  <tbody>
+                    {% for row in table.rows %}
+                      <tr>{% for column in table.columns %}<td>{{ row[column] if row[column] is not none else '—' }}</td>{% endfor %}</tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% else %}
+              <p class="muted">This table exists but currently has no rows.</p>
+            {% endif %}
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state"><h3>No MySQL tables found</h3><p>Check the selected database and import your existing schema/data if needed.</p></div>
+      {% endif %}
+    </section>
+
+    <section class="panel" id="mongodb">
+      <div class="panel-heading">
+        <div><h2>MongoDB collections</h2><p class="muted">Shows up to 100 documents per collection.</p></div>
+        <span class="count-pill">{{ mongo_collections|length }} collections</span>
+      </div>
+      {% if mongo_error %}
+        <div class="notice warning"><strong>MongoDB:</strong> {{ mongo_error }}</div>
+      {% elif mongo_collections %}
+        {% for collection in mongo_collections %}
+          <div class="db-table">
+            <div class="panel-heading">
+              <h3>{{ collection.name }}</h3>
+              <span class="db-count">{{ collection.shown }} documents shown (maximum 100)</span>
+            </div>
+            {% if collection.documents %}
+              {% for document in collection.documents %}
+                <pre class="db-json">{{ document|tojson(indent=2) }}</pre>
+              {% endfor %}
+            {% else %}
+              <p class="muted">This collection exists but currently has no documents.</p>
+            {% endif %}
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state"><h3>No MongoDB collections found</h3><p>Check the MongoDB URI and database name, or import your existing JSON documents.</p></div>
+      {% endif %}
+    </section>
+    <p class="footer-note">AI Maintenance Optimizer · {{ current_year }} · Read-only database browser.</p>
+  </main>
+</body>
+</html>
