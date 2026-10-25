@@ -2,9 +2,9 @@ name: Python tests
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, "feature/database-data-browser"]
   push:
-    branches: [main, "chatgpt/**"]
+    branches: [main, "chatgpt/**", "feature/database-data-browser"]
 
 jobs:
   test:
