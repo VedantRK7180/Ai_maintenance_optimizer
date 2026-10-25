@@ -525,6 +525,103 @@ def database_browser():
     )
 
 
+
+@app.route("/machines")
+@login_required
+def machine_monitor():
+    """Show individual machine readings and a read-only history view."""
+    machines, _readings, decisions, db_error = fetch_machine_summary()
+    machine_names = [str(item.get("machine_name")) for item in machines if item.get("machine_name")]
+    selected_name = request.args.get("machine", "").strip()
+    if selected_name not in machine_names:
+        selected_name = machine_names[0] if machine_names else ""
+    history = []
+    history_error = db_error
+    if selected_name:
+        connection, connection_error = get_mysql_connection()
+        if connection is None:
+            history_error = connection_error
+        else:
+            try:
+                cursor = connection.cursor(dictionary=True)
+                cursor.execute("""
+                    SELECT sr.reading_id, sr.recorded_at, sm.sensor_name, sm.sensor_value, sm.unit
+                    FROM MACHINE m
+                    JOIN SENSOR_READING sr ON sr.machine_id = m.machine_id
+                    JOIN SENSOR_MEASUREMENT sm ON sm.reading_id = sr.reading_id
+                    WHERE m.machine_name = %s
+                    ORDER BY sr.recorded_at DESC, sr.reading_id DESC
+                    LIMIT 500
+                """, (selected_name,))
+                history = cursor.fetchall()
+                cursor.close()
+            except Exception:
+                app.logger.exception("Could not load machine sensor history")
+                history_error = "Could not load history for this machine. Check the database schema and server logs."
+            finally:
+                connection.close()
+    latest = {}
+    for reading in reversed(history):
+        latest[str(reading.get("sensor_name", ""))] = reading
+    decision = next((item for item in decisions if item.get("machine_name") == selected_name), None)
+    health = decision.get("health_score") if decision else None
+    risk = decision.get("failure_risk") if decision else None
+    try:
+        critical = (float(risk) >= 75) or str(decision.get("urgency_level", "")).upper() == "CRITICAL"
+    except (TypeError, ValueError, AttributeError):
+        critical = bool(decision and str(decision.get("urgency_level", "")).upper() == "CRITICAL")
+    return render_template("machine_monitor.html", machines=machines, machine_names=machine_names,
+        selected_name=selected_name, history=history, latest=latest, decision=decision,
+        health=health, risk=risk, critical=critical, db_error=history_error,
+        current_year=datetime.now().year)
+
+
+@app.route("/maintenance/schedule", methods=["POST"])
+@login_required
+def schedule_maintenance():
+    """Save a maintenance request in MongoDB; this does not reserve a real-world slot."""
+    machine_name = request.form.get("machine_name", "").strip()
+    requested_date = request.form.get("requested_date", "").strip()
+    priority = request.form.get("priority", "Normal").strip().title()
+    description = request.form.get("description", "").strip()
+    if not machine_name or not requested_date or not description:
+        flash("Machine, requested date, and maintenance description are required.", "error")
+        return redirect(url_for("machine_monitor", machine=machine_name))
+    if priority not in {"Critical", "High", "Normal", "Low"}:
+        priority = "Normal"
+    try:
+        requested_dt = datetime.strptime(requested_date, "%Y-%m-%d")
+        if requested_dt.date() < datetime.now().date():
+            raise ValueError
+    except ValueError:
+        flash("Choose a valid maintenance date that is not in the past.", "error")
+        return redirect(url_for("machine_monitor", machine=machine_name))
+    mongo_uri = os.getenv("MONGODB_URI", os.getenv("MONGO_URI"))
+    mongo_database = os.getenv("MONGODB_DATABASE", os.getenv("MONGO_DATABASE"))
+    if not mongo_uri or not mongo_database:
+        flash("MongoDB is not configured. Set MONGODB_URI and MONGODB_DATABASE in .env.", "error")
+        return redirect(url_for("machine_monitor", machine=machine_name))
+    client = None
+    try:
+        from pymongo import MongoClient
+        client = MongoClient(mongo_uri, serverSelectionTimeoutMS=3000)
+        client.admin.command("ping")
+        client[mongo_database]["MAINTENANCE_REQUESTS"].insert_one({
+            "machine_name": machine_name, "requested_date": requested_date,
+            "priority": priority, "description": description, "status": "Requested",
+            "requested_by": session.get("username", "manager"), "created_at": datetime.utcnow(),
+            "source": "AI Maintenance Optimizer web app",
+        })
+        flash("Maintenance request saved. Confirm the actual slot with your maintenance team.", "success")
+    except Exception:
+        app.logger.exception("Could not save maintenance request to MongoDB")
+        flash("Could not save the request. Check MongoDB configuration and server logs.", "error")
+    finally:
+        if client is not None:
+            client.close()
+    return redirect(url_for("machine_monitor", machine=machine_name))
+
+
 @app.route("/logout", methods=["POST"])
 @login_required
 def logout():
