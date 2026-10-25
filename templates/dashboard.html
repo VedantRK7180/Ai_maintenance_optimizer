@@ -112,22 +112,125 @@
       {% endif %}
     </section>
 
-    <section class="panel">
+    <section class="panel machine-inventory">
       <div class="panel-heading">
-        <div><h2>Registered machines</h2><p class="muted">Machines currently returned by your database.</p></div>
-        <span class="count-pill">{{ machines|length }} total</span>
+        <div><h2>Machine inventory</h2><p class="muted">Search registered equipment, inspect every available database field, and open the live monitoring page for sensor history.</p></div>
+        <span class="count-pill">{{ machines|length }} machines</span>
       </div>
       {% if machines %}
-        <div class="table-scroll">
-          <table>
-            <thead><tr>{% for key in machines[0].keys() %}<th>{{ key.replace('_', ' ')|title }}</th>{% endfor %}</tr></thead>
-            <tbody>
-              {% for machine in machines %}
-                <tr>{% for value in machine.values() %}<td>{{ value if value is not none else '—' }}</td>{% endfor %}</tr>
-              {% endfor %}
-            </tbody>
-          </table>
+        <div class="machine-toolbar">
+          <label class="machine-search-label" for="machineSearch">Search machines</label>
+          <input id="machineSearch" class="machine-search" type="search" placeholder="Search ID, name, type, line, status…" autocomplete="off">
+          <label class="machine-filter-label" for="machineStatus">Status</label>
+          <select id="machineStatus" class="machine-filter">
+            <option value="">All statuses</option>
+          </select>
+          <span id="machineResultCount" class="count-pill">{{ machines|length }} shown</span>
         </div>
+        <div id="machineCards" class="machine-card-grid">
+          {% for machine in machines %}
+            {% set ns = namespace(machine_id='', machine_name='', machine_type='', status='', line='') %}
+            {% for key, value in machine.items() %}
+              {% set normalized = key|lower %}
+              {% if normalized in ['machine_id', 'id'] %}{% set ns.machine_id = value|string %}{% endif %}
+              {% if normalized in ['machine_name', 'name'] %}{% set ns.machine_name = value|string %}{% endif %}
+              {% if 'type' in normalized %}{% set ns.machine_type = value|string %}{% endif %}
+              {% if 'status' in normalized %}{% set ns.status = value|string %}{% endif %}
+              {% if 'line' in normalized %}{% set ns.line = value|string %}{% endif %}
+            {% endfor %}
+            <article class="machine-detail-card" data-search="{{ machine.values()|join(' ')|lower }}" data-status="{{ ns.status|lower }}">
+              <div class="machine-card-top">
+                <div>
+                  <span class="machine-id-label">MACHINE {{ ns.machine_id if ns.machine_id else loop.index }}</span>
+                  <h3>{{ ns.machine_name if ns.machine_name else 'Registered machine' }}</h3>
+                </div>
+                {% if ns.status %}
+                  <span class="machine-status-badge">{{ ns.status }}</span>
+                {% else %}
+                  <span class="machine-status-badge status-unknown">Status not recorded</span>
+                {% endif %}
+              </div>
+              <div class="machine-quick-facts">
+                <div><span>Machine type</span><strong>{{ ns.machine_type if ns.machine_type else 'Not recorded' }}</strong></div>
+                <div><span>Production line</span><strong>{{ ns.line if ns.line else 'Not recorded' }}</strong></div>
+                <div><span>Fields available</span><strong>{{ machine|length }}</strong></div>
+              </div>
+              <details class="machine-fields">
+                <summary>View all machine information <span>＋</span></summary>
+                <dl>
+                  {% for key, value in machine.items() %}
+                    <div class="machine-field-row">
+                      <dt>{{ key.replace('_', ' ')|title }}</dt>
+                      <dd>{{ value if value is not none and value|string|trim else 'Not recorded' }}</dd>
+                    </div>
+                  {% endfor %}
+                </dl>
+              </details>
+              {% if ns.machine_name %}
+                <a class="machine-open-link" href="{{ url_for('machine_monitor', machine=ns.machine_name) }}">Open monitoring &amp; sensor history <span aria-hidden="true">→</span></a>
+              {% endif %}
+            </article>
+          {% endfor %}
+        </div>
+        <p id="machineNoResults" class="empty-state compact" hidden><strong>No machines match those filters.</strong><br>Try another search or select “All statuses”.</p>
+        <style>
+          .machine-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:18px 0 20px}
+          .machine-search-label,.machine-filter-label{font-size:12px;font-weight:750;color:#536078}
+          .machine-search{flex:1;min-width:220px;padding:12px 14px;border:1px solid #dce2ee;border-radius:11px;background:#fff;color:#172033;font:inherit}
+          .machine-filter{padding:12px;border:1px solid #dce2ee;border-radius:11px;background:#fff;color:#172033;font:inherit}
+          .machine-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));gap:16px}
+          .machine-detail-card{min-width:0;padding:18px;border:1px solid #e2e7f0;border-radius:16px;background:linear-gradient(155deg,#fff 0%,#fafbff 100%);box-shadow:0 5px 18px rgba(31,48,85,.035)}
+          .machine-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+          .machine-id-label{font-size:10px;letter-spacing:1.3px;font-weight:800;color:#6b78a3}
+          .machine-detail-card h3{margin:6px 0 0;font-size:19px;overflow-wrap:anywhere}
+          .machine-status-badge{display:inline-flex;align-items:center;max-width:48%;padding:6px 9px;border-radius:999px;background:#e5f7ee;color:#187348;font-size:11px;font-weight:750;overflow-wrap:anywhere}
+          .machine-status-badge.status-unknown{background:#edf0f5;color:#697386}
+          .machine-quick-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:20px 0}
+          .machine-quick-facts>div{min-width:0;padding:10px;border-radius:10px;background:#f1f4fa}
+          .machine-quick-facts span{display:block;font-size:10px;color:#737e93;margin-bottom:6px}
+          .machine-quick-facts strong{display:block;font-size:12px;overflow-wrap:anywhere}
+          .machine-fields{border-top:1px solid #e8ebf2;padding-top:12px}
+          .machine-fields summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:10px;font-size:12px;font-weight:750;color:#35456c}
+          .machine-fields summary::-webkit-details-marker{display:none}
+          .machine-fields[open] summary{margin-bottom:10px}
+          .machine-fields dl{margin:0}
+          .machine-field-row{display:grid;grid-template-columns:minmax(95px, .8fr) minmax(0,1.2fr);gap:10px;padding:8px 0;border-top:1px solid #edf0f5}
+          .machine-field-row dt{font-size:11px;color:#778197}
+          .machine-field-row dd{margin:0;font-size:12px;font-weight:650;overflow-wrap:anywhere}
+          .machine-open-link{display:flex;justify-content:space-between;gap:8px;margin-top:15px;padding:11px 12px;border-radius:10px;background:#253d80;color:white;text-decoration:none;font-size:12px;font-weight:750}
+          .machine-open-link:hover{background:#1c2f68}
+          @media(max-width:520px){.machine-quick-facts{grid-template-columns:1fr}.machine-search{min-width:100%}.machine-field-row{grid-template-columns:1fr;gap:4px}}
+        </style>
+        <script>
+          (() => {
+            const search = document.getElementById('machineSearch');
+            const status = document.getElementById('machineStatus');
+            const cards = [...document.querySelectorAll('.machine-detail-card')];
+            const count = document.getElementById('machineResultCount');
+            const empty = document.getElementById('machineNoResults');
+            const select = document.getElementById('machineStatus');
+            [...new Set(cards.map(card => card.dataset.status).filter(Boolean))].sort().forEach(value => {
+              const option = document.createElement('option');
+              option.value = value;
+              option.textContent = value.replace(/\b\w/g, letter => letter.toUpperCase());
+              select.appendChild(option);
+            });
+            function filterMachines() {
+              const query = search.value.trim().toLowerCase();
+              let shown = 0;
+              cards.forEach(card => {
+                const matchesText = card.dataset.search.includes(query);
+                const matchesStatus = !status.value || card.dataset.status === status.value;
+                card.hidden = !(matchesText && matchesStatus);
+                if (!card.hidden) shown++;
+              });
+              count.textContent = shown + (shown === 1 ? ' machine shown' : ' machines shown');
+              empty.hidden = shown !== 0;
+            }
+            search.addEventListener('input', filterMachines);
+            status.addEventListener('change', filterMachines);
+          })();
+        </script>
       {% else %}
         <div class="empty-state"><div class="empty-icon">01</div><h3>No machine records yet</h3><p>When MySQL is configured and the MACHINE table contains records, they will appear here.</p></div>
       {% endif %}
