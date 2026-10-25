@@ -11,7 +11,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from ml.cnc_what_if import build_cnc_model_input
-from ml.model_utils import predict_failure_probability
+from ml.model_utils import classify_failure_prediction, predict_failure_probability
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 MODEL_PATH = BASE_DIR / "ml" / "cnc_model_baseline.joblib"
@@ -116,13 +116,7 @@ def main() -> int:
         print(f"Torque              : {float(sensor_data['Torque']):.2f} Nm")
         print(f"Tool Wear           : {float(sensor_data['Tool Wear']):.2f} min")
         print("\nPrediction:")
-        label = str(prediction).strip().lower()
-        if label in {"1", "true", "failure", "failed", "fail", "yes"}:
-            condition = "FAILURE RISK"
-        elif label in {"0", "false", "normal", "healthy", "no"}:
-            condition = "NORMAL"
-        else:
-            condition = f"UNRECOGNIZED MODEL LABEL ({prediction})"
+        condition = classify_failure_prediction(prediction)
         print("Condition            :", condition)
         print(f"Failure Risk         : {risk:.2f}%")
         print("\nMySQL connection closed.")
@@ -130,9 +124,20 @@ def main() -> int:
         return 0
     finally:
         if cursor is not None:
-            cursor.close()
-        if connection is not None and connection.is_connected():
-            connection.close()
+            try:
+                cursor.close()
+            except Exception:
+                pass
+        if connection is not None:
+            try:
+                if connection.is_connected():
+                    connection.close()
+            except Exception:
+                # Do not mask the original prediction/connection error during cleanup.
+                try:
+                    connection.close()
+                except Exception:
+                    pass
 
 
 if __name__ == "__main__":
