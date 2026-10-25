@@ -605,7 +605,7 @@ def machine_monitor():
     return render_template("machine_monitor.html", machines=machines, machine_names=machine_names,
         selected_name=selected_name, history=history, latest=latest, decision=decision,
         health=health, risk=risk, critical=critical, db_error=history_error,
-        current_year=datetime.now().year)
+        current_year=datetime.now().year, today=datetime.now().date().isoformat())
 
 
 @app.route("/maintenance/schedule", methods=["POST"])
