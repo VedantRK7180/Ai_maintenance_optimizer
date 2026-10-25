@@ -37,6 +37,15 @@
       <span class="live-pill"><span></span> Read-only</span>
     </section>
 
+    <form method="get" action="{{ url_for('database_browser') }}" class="db-search-form">
+      <label for="db-search">Search visible records</label>
+      <div class="db-search-controls">
+        <input id="db-search" type="search" name="q" value="{{ search_query }}" maxlength="100" placeholder="Search values or document text…">
+        <button class="primary-button" type="submit">Search</button>
+        {% if search_query %}<a class="ghost-button" href="{{ url_for('database_browser') }}">Clear</a>{% endif %}
+      </div>
+      <p class="muted">Search filters the current page of each table or collection. Use the page controls below to browse additional records.</p>
+    </form>
     <div class="db-tabs">
       <a class="ghost-button" href="#mysql">MySQL tables ({{ mysql_tables|length }})</a>
       <a class="ghost-button" href="#mongodb">MongoDB collections ({{ mongo_collections|length }})</a>
@@ -44,7 +53,7 @@
 
     <section class="panel" id="mysql">
       <div class="panel-heading">
-        <div><h2>MySQL tables</h2><p class="muted">Shows up to 100 rows per table to keep the page responsive.</p></div>
+        <div><h2>MySQL tables</h2><p class="muted">Shows {{ table.shown }} matching rows from page {{ table.page }} of {{ table.pages }} ({{ table.total }} total).</p></div>
         <span class="count-pill">{{ mysql_tables|length }} tables</span>
       </div>
       {% if mysql_error %}
@@ -54,7 +63,7 @@
           <div class="db-table">
             <div class="panel-heading">
               <h3>{{ table.name }}</h3>
-              <span class="db-count">{{ table.shown }} rows shown (maximum 100)</span>
+              <span class="db-count">{{ table.shown }} rows shown · page {{ table.page }} / {{ table.pages }} · {{ table.total }} total</span>
             </div>
             {% if table.rows %}
               <div class="table-scroll">
@@ -68,7 +77,14 @@
                 </table>
               </div>
             {% else %}
-              <p class="muted">This table exists but currently has no rows.</p>
+              <p class="muted">{% if search_query %}No matching rows on this page.{% else %}This table exists but currently has no rows on this page.{% endif %}</p>
+            {% endif %}
+            {% if table.pages > 1 %}
+              <nav class="db-pagination" aria-label="Pagination for {{ table.name }}">
+                {% if table.page > 1 %}<a class="ghost-button" href="{{ url_for('database_browser', q=search_query, **{table.page_key: table.page - 1}) }}#mysql">← Previous</a>{% endif %}
+                <span>Page {{ table.page }} of {{ table.pages }}</span>
+                {% if table.page < table.pages %}<a class="ghost-button" href="{{ url_for('database_browser', q=search_query, **{table.page_key: table.page + 1}) }}#mysql">Next →</a>{% endif %}
+              </nav>
             {% endif %}
           </div>
         {% endfor %}
@@ -79,7 +95,7 @@
 
     <section class="panel" id="mongodb">
       <div class="panel-heading">
-        <div><h2>MongoDB collections</h2><p class="muted">Shows up to 100 documents per collection.</p></div>
+        <div><h2>MongoDB collections</h2><p class="muted">Shows a page of documents at a time.</p></div>
         <span class="count-pill">{{ mongo_collections|length }} collections</span>
       </div>
       {% if mongo_error %}
@@ -89,14 +105,21 @@
           <div class="db-table">
             <div class="panel-heading">
               <h3>{{ collection.name }}</h3>
-              <span class="db-count">{{ collection.shown }} documents shown (maximum 100)</span>
+              <span class="db-count">{{ collection.shown }} documents shown · page {{ collection.page }} / {{ collection.pages }} · {{ collection.total }} total</span>
             </div>
             {% if collection.documents %}
               {% for document in collection.documents %}
                 <pre class="db-json">{{ document|tojson(indent=2) }}</pre>
               {% endfor %}
             {% else %}
-              <p class="muted">This collection exists but currently has no documents.</p>
+              <p class="muted">{% if search_query %}No matching documents on this page.{% else %}This collection currently has no documents on this page.{% endif %}</p>
+            {% endif %}
+            {% if collection.pages > 1 %}
+              <nav class="db-pagination" aria-label="Pagination for {{ collection.name }}">
+                {% if collection.page > 1 %}<a class="ghost-button" href="{{ url_for('database_browser', q=search_query, **{collection.page_key: collection.page - 1}) }}#mongodb">← Previous</a>{% endif %}
+                <span>Page {{ collection.page }} of {{ collection.pages }}</span>
+                {% if collection.page < collection.pages %}<a class="ghost-button" href="{{ url_for('database_browser', q=search_query, **{collection.page_key: collection.page + 1}) }}#mongodb">Next →</a>{% endif %}
+              </nav>
             {% endif %}
           </div>
         {% endfor %}
