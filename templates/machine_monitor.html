@@ -38,6 +38,19 @@
   </section>
   {% if critical %}<div class="notice warning"><strong>Critical review recommended.</strong> The saved AI decision indicates critical urgency or failure risk at/above 75%. Confirm with an engineer and consider submitting a maintenance request below.</div>{% endif %}
   {% if decision %}<section class="panel"><div class="panel-heading"><div><h2>Latest AI recommendation</h2><p class="muted">{{ decision.decision_time or 'Decision timestamp unavailable' }}</p></div><span class="count-pill">{{ decision.urgency_level or 'Unrated' }}</span></div><p>{{ decision.recommendation or 'No recommendation saved.' }}</p><p class="risk-disclaimer">AI scores are advisory estimates, not a verified diagnosis. Confirm thresholds and inspect the machine before acting.</p></section>{% endif %}
+  <section class="panel">
+    <div class="panel-heading"><div><h2>Latest sensor snapshot</h2><p class="muted">Most recent stored value for each sensor name. Units are taken directly from your database.</p></div><span class="count-pill">{{ latest|length }} sensors</span></div>
+    {% if latest %}
+      <div class="sensor-grid">
+        {% for sensor_name, row in latest.items() %}
+          <div><span>{{ sensor_name }}</span><strong>{{ row.sensor_value if row.sensor_value is not none else '—' }}{% if row.unit %} {{ row.unit }}{% endif %}</strong><p class="stat-foot">{{ row.recorded_at or 'Timestamp unavailable' }}</p></div>
+        {% endfor %}
+      </div>
+      <p class="risk-disclaimer">No universal sensor thresholds are assumed because safe limits depend on sensor units, machine model, and operating conditions. Confirm approved limits with your equipment documentation before treating a reading as an alarm.</p>
+    {% else %}
+      <div class="empty-state compact"><h3>No current sensor values</h3><p>Latest sensor values will appear when readings are available for this machine.</p></div>
+    {% endif %}
+  </section>
   <section class="panel"><div class="panel-heading"><div><h2>Sensor history</h2><p class="muted">Historical measurements are shown in a table; charting depends on the available sensor data and units.</p></div><span class="count-pill">{{ history|length }} rows</span></div>
     {% if history %}<div class="table-scroll"><table><thead><tr><th>Recorded at</th><th>Sensor</th><th>Value</th><th>Unit</th><th>Reading ID</th></tr></thead><tbody>{% for row in history %}<tr><td>{{ row.recorded_at or '—' }}</td><td>{{ row.sensor_name }}</td><td>{{ row.sensor_value if row.sensor_value is not none else '—' }}</td><td>{{ row.unit or '—' }}</td><td>{{ row.reading_id }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="empty-state compact"><h3>No sensor history available</h3><p>This machine has no readings in the expected sensor tables.</p></div>{% endif %}
   </section>
