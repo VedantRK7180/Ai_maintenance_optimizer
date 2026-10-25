@@ -680,6 +680,14 @@ def schedule_maintenance():
     if not machine_name or not requested_date or not description:
         flash("Machine, requested date, and maintenance description are required.", "error")
         return redirect(url_for("machine_monitor", machine=machine_name))
+    machines, _readings, _decisions, machine_error = fetch_machine_summary()
+    registered_names = {str(item.get("machine_name", "")).strip() for item in machines}
+    if machine_error or machine_name not in registered_names:
+        flash("Choose a registered machine before submitting a maintenance request.", "error")
+        return redirect(url_for("machine_monitor"))
+    if len(description) > 2000:
+        flash("Please keep the maintenance description under 2,000 characters.", "error")
+        return redirect(url_for("machine_monitor", machine=machine_name))
     if priority not in {"Critical", "High", "Normal", "Low"}:
         priority = "Normal"
     try:
