@@ -274,11 +274,15 @@ def planner():
     for decision in decisions:
         try:
             urgency = float(decision.get("urgency_score") or 0)
-        except (TypeError, ValueError):
+            if not math.isfinite(urgency):
+                urgency = 0.0
+        except (TypeError, ValueError, OverflowError):
             urgency = 0.0
         try:
             risk = float(decision.get("failure_risk") or 0)
-        except (TypeError, ValueError):
+            if not math.isfinite(risk):
+                risk = 0.0
+        except (TypeError, ValueError, OverflowError):
             risk = 0.0
 
         level = str(decision.get("urgency_level") or "").strip().upper()
