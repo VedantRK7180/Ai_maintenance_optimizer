@@ -1,232 +1,139 @@
-import os
-import mysql.connector
-import joblib
-import pandas as pd
+"""Run one CNC failure-risk prediction from the latest MySQL sensor reading.
 
-from model_utils import predict_failure_probability
+This script is intentionally safe to import: database connections and model inference
+only happen when run as a script or when main() is called explicitly.
+"""
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
 from dotenv import load_dotenv
 
-load_dotenv()
-
-
-# ============================================================
-# 1. PROJECT PATHS
-# ============================================================
-
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-MODEL_PATH = os.path.join(
-    BASE_DIR,
-    "ml",
-    "cnc_model_baseline.joblib"
-)
-
-
-# ============================================================
-# 2. MYSQL CONNECTION
-# ============================================================
-
-mysql_password = os.getenv("MYSQL_PASSWORD", os.getenv("DB_PASSWORD"))
-if not mysql_password:
-    raise RuntimeError("MYSQL_PASSWORD is missing. Add your existing MySQL password to the local .env file.")
-
-connection = mysql.connector.connect(
-    host=os.getenv("MYSQL_HOST", os.getenv("DB_HOST", "localhost")),
-    port=int(os.getenv("MYSQL_PORT", "3306")),
-    user=os.getenv("MYSQL_USER", os.getenv("DB_USER", "root")),
-    password=mysql_password,
-    database=os.getenv("MYSQL_DATABASE", os.getenv("DB_NAME", "AI_Maintenance_DB"))
-)
-
-print("\n========== DATABASE AI PREDICTION ==========\n")
-print("Connected to MySQL.")
-
-
-# ============================================================
-# 3. LOAD TRAINED RANDOM FOREST MODEL
-# ============================================================
-
-model_package = joblib.load(MODEL_PATH)
-
-model = model_package["model"]
-model_features = model_package["features"]
-
-print("Random Forest model loaded.")
-
-
-# ============================================================
-# 4. GET LATEST SENSOR READING FOR CNC-102
-# ============================================================
-
-query = """
-SELECT
-    m.machine_name,
-    sr.reading_id,
-    sr.recorded_at,
-    sm.sensor_name,
-    sm.sensor_value,
-    sm.unit
-
-FROM MACHINE m
-
-JOIN SENSOR_READING sr
-    ON m.machine_id = sr.machine_id
-
-JOIN SENSOR_MEASUREMENT sm
-    ON sr.reading_id = sm.reading_id
-
-WHERE m.machine_name = 'CNC-102'
-
-AND sr.reading_id = (
-    SELECT MAX(sr2.reading_id)
-    FROM SENSOR_READING sr2
-    WHERE sr2.machine_id = m.machine_id
-)
-
-ORDER BY sm.sensor_name;
-"""
-
-
-cursor = connection.cursor(dictionary=True)
-
-cursor.execute(query)
-
-rows = cursor.fetchall()
-
-
-# ============================================================
-# 5. DISPLAY SENSOR DATA
-# ============================================================
-
-print("\n---------- SENSOR DATA FROM MYSQL ----------\n")
-
-if not rows:
-    print("No sensor data found.")
-    cursor.close()
-    connection.close()
-    exit()
-
-for row in rows:
-    print(
-        f"{row['sensor_name']:15} : "
-        f"{row['sensor_value']} {row['unit']}"
-    )
-
-
-# ============================================================
-# 6. CONVERT SENSOR DATA INTO MODEL INPUT
-# ============================================================
-
-sensor_data = {}
-
-for row in rows:
-    sensor_data[row["sensor_name"]] = float(row["sensor_value"])
-
-
-# ============================================================
-# 7. PREPARE VALUES FOR AI4I MODEL
-# ============================================================
-
-# Database stores temperature in Celsius.
-# AI4I model expects Kelvin.
-
-air_temperature = sensor_data["Temperature"] + 273.15
-
-# AI4I requires process temperature.
-# For this prototype we use air temperature + 10 K.
-
-process_temperature = air_temperature + 10.0
-
-rotational_speed = sensor_data["RPM"]
-
-torque = sensor_data["Torque"]
-
-tool_wear = sensor_data["Tool Wear"]
-
-
-# ============================================================
-# 8. CREATE MODEL INPUT
-# ============================================================
-
-input_data = pd.DataFrame([{
-    "Type": "M",
-    "Air temperature [K]": air_temperature,
-    "Process temperature [K]": process_temperature,
-    "Rotational speed [rpm]": rotational_speed,
-    "Torque [Nm]": torque,
-    "Tool wear [min]": tool_wear
-}])
-
-
-# ============================================================
-# 9. ONE-HOT ENCODE MACHINE TYPE
-# ============================================================
-
-input_data = pd.get_dummies(
-    input_data,
-    columns=["Type"],
-    dtype=int
-)
-
-
-# ============================================================
-# 10. MATCH TRAINING FEATURES
-# ============================================================
-
-for column in model_features:
-
-    if column not in input_data.columns:
-        input_data[column] = 0
-
-
-input_data = input_data[model_features]
-
-
-# ============================================================
-# 11. RUN RANDOM FOREST PREDICTION
-# ============================================================
-
-prediction = model.predict(input_data)[0]
-
-failure_risk = predict_failure_probability(model, input_data) * 100
-
-
-# ============================================================
-# 12. DETERMINE CONDITION
-# ============================================================
-
-if prediction == 1:
-    condition = "FAILURE RISK"
-else:
-    condition = "NORMAL"
-
-
-# ============================================================
-# 13. DISPLAY AI RESULT
-# ============================================================
-
-print("\n---------- AI PREDICTION ----------\n")
-
-print("Machine             : CNC-102")
-print(f"Air Temperature     : {air_temperature:.2f} K")
-print(f"Process Temperature : {process_temperature:.2f} K")
-print(f"RPM                 : {rotational_speed:.0f}")
-print(f"Torque              : {torque:.2f} Nm")
-print(f"Tool Wear           : {tool_wear:.2f} min")
-
-print("\nPrediction:")
-print("Condition            :", condition)
-print(f"Failure Risk         : {failure_risk:.2f}%")
-
-
-# ============================================================
-# 14. CLOSE DATABASE CONNECTION
-# ============================================================
-
-cursor.close()
-connection.close()
-
-print("\nMySQL connection closed.")
-
-print("\n============================================\n")
-
+from ml.cnc_what_if import build_cnc_model_input
+from ml.model_utils import predict_failure_probability
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+MODEL_PATH = BASE_DIR / "ml" / "cnc_model_baseline.joblib"
+DEFAULT_MACHINE_NAME = "CNC-102"
+
+
+def main() -> int:
+    """Load configuration, read the latest machine data, predict risk, and clean up."""
+    load_dotenv(BASE_DIR / ".env")
+
+    mysql_password = os.getenv("MYSQL_PASSWORD", os.getenv("DB_PASSWORD"))
+    if not mysql_password:
+        raise RuntimeError(
+            "MYSQL_PASSWORD is missing. Add your existing MySQL password to the local .env file."
+        )
+    if not MODEL_PATH.is_file():
+        raise FileNotFoundError(f"Model file is missing: {MODEL_PATH}")
+
+    import joblib
+    import mysql.connector
+
+    connection = None
+    cursor = None
+    try:
+        connection = mysql.connector.connect(
+            host=os.getenv("MYSQL_HOST", os.getenv("DB_HOST", "localhost")),
+            port=int(os.getenv("MYSQL_PORT", "3306")),
+            user=os.getenv("MYSQL_USER", os.getenv("DB_USER", "root")),
+            password=mysql_password,
+            database=os.getenv("MYSQL_DATABASE", os.getenv("DB_NAME", "AI_Maintenance_DB")),
+            connection_timeout=5,
+        )
+        print("\n========== DATABASE AI PREDICTION ==========\n")
+        print("Connected to MySQL.")
+
+        package = joblib.load(MODEL_PATH)
+        if not isinstance(package, dict) or "model" not in package:
+            raise ValueError("The CNC model package has an unexpected format.")
+        model = package["model"]
+        model_features = package.get("features") or list(
+            getattr(model, "feature_names_in_", [])
+        )
+        if not model_features:
+            raise ValueError("The CNC model does not declare its expected input features.")
+        print("Random Forest model loaded.")
+
+        machine_name = os.getenv("PREDICTION_MACHINE_NAME", DEFAULT_MACHINE_NAME).strip()
+        if not machine_name:
+            raise ValueError("PREDICTION_MACHINE_NAME cannot be empty.")
+
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT
+                m.machine_name,
+                sr.reading_id,
+                sr.recorded_at,
+                sm.sensor_name,
+                sm.sensor_value,
+                sm.unit
+            FROM MACHINE m
+            JOIN SENSOR_READING sr ON sr.machine_id = m.machine_id
+            JOIN SENSOR_MEASUREMENT sm ON sm.reading_id = sr.reading_id
+            WHERE m.machine_name = %s
+              AND sr.reading_id = (
+                  SELECT sr2.reading_id
+                  FROM SENSOR_READING sr2
+                  WHERE sr2.machine_id = m.machine_id
+                  ORDER BY sr2.recorded_at DESC, sr2.reading_id DESC
+                  LIMIT 1
+              )
+            ORDER BY sm.sensor_name
+            """,
+            (machine_name,),
+        )
+        rows = cursor.fetchall()
+        if not rows:
+            print(f"No sensor data found for {machine_name}.")
+            return 1
+
+        sensor_data = {row["sensor_name"]: row["sensor_value"] for row in rows}
+        required = ("Temperature", "RPM", "Torque", "Tool Wear")
+        missing = [name for name in required if name not in sensor_data]
+        if missing:
+            raise ValueError(
+                "Latest reading is missing required model inputs: " + ", ".join(missing)
+            )
+
+        print("\n---------- SENSOR DATA FROM MYSQL ----------\n")
+        for row in rows:
+            print(f"{row['sensor_name']:15} : {row['sensor_value']} {row['unit']}")
+
+        model_input = build_cnc_model_input(sensor_data, list(model_features))
+        prediction = model.predict(model_input)[0]
+        risk = predict_failure_probability(model, model_input) * 100.0
+
+        print("\n---------- AI PREDICTION ----------\n")
+        print(f"Machine             : {machine_name}")
+        print(f"Air Temperature     : {float(sensor_data['Temperature']) + 273.15:.2f} K")
+        print(f"Process Temperature : {float(sensor_data['Temperature']) + 283.15:.2f} K")
+        print(f"RPM                 : {float(sensor_data['RPM']):.0f}")
+        print(f"Torque              : {float(sensor_data['Torque']):.2f} Nm")
+        print(f"Tool Wear           : {float(sensor_data['Tool Wear']):.2f} min")
+        print("\nPrediction:")
+        label = str(prediction).strip().lower()
+        if label in {"1", "true", "failure", "failed", "fail", "yes"}:
+            condition = "FAILURE RISK"
+        elif label in {"0", "false", "normal", "healthy", "no"}:
+            condition = "NORMAL"
+        else:
+            condition = f"UNRECOGNIZED MODEL LABEL ({prediction})"
+        print("Condition            :", condition)
+        print(f"Failure Risk         : {risk:.2f}%")
+        print("\nMySQL connection closed.")
+        print("\n============================================\n")
+        return 0
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
