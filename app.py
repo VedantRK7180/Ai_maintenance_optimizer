@@ -311,9 +311,41 @@ def planner():
             -item["risk_numeric"],
         )
     )
+    # Maintenance requests are stored separately in MongoDB; keep this view useful
+    # even when MongoDB is not configured or temporarily unavailable.
+    maintenance_requests = []
+    mongo_error = None
+    mongo_uri = os.getenv("MONGODB_URI", os.getenv("MONGO_URI"))
+    mongo_database = os.getenv("MONGODB_DATABASE", os.getenv("MONGO_DATABASE"))
+    if mongo_uri and mongo_database:
+        client = None
+        try:
+            from pymongo import MongoClient
+            client = MongoClient(mongo_uri, serverSelectionTimeoutMS=2500)
+            client.admin.command("ping")
+            cursor = client[mongo_database]["MAINTENANCE_REQUESTS"].find(
+                {}, {"machine_name": 1, "requested_date": 1, "priority": 1,
+                     "description": 1, "status": 1, "requested_by": 1, "created_at": 1}
+            ).sort([("requested_date", 1), ("created_at", -1)]).limit(100)
+            for item in cursor:
+                item["_id"] = str(item.get("_id", ""))
+                if isinstance(item.get("created_at"), datetime):
+                    item["created_at"] = item["created_at"].strftime("%Y-%m-%d %H:%M")
+                maintenance_requests.append(item)
+        except Exception:
+            app.logger.exception("Could not load maintenance requests from MongoDB")
+            mongo_error = "Saved maintenance requests could not be loaded. Check MongoDB configuration and server logs."
+        finally:
+            if client is not None:
+                client.close()
+    else:
+        mongo_error = "MongoDB is not configured; saved maintenance requests are unavailable."
+
     return render_template(
         "planner.html",
         priorities=priorities,
+        maintenance_requests=maintenance_requests,
+        mongo_error=mongo_error,
         db_error=db_error,
         machine_count=len(machines),
         reading_count=len(readings),
