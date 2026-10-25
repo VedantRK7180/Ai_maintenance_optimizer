@@ -138,7 +138,7 @@
               {% if 'status' in normalized %}{% set ns.status = value|string %}{% endif %}
               {% if 'line' in normalized %}{% set ns.line = value|string %}{% endif %}
             {% endfor %}
-            <article class="machine-detail-card" data-search="{{ machine.values()|join(' ')|lower }}" data-status="{{ ns.status|lower }}">
+            <article class="machine-detail-card" data-search="{{ machine.values()|join(' ')|lower }}" data-status="{{ ns.status|lower }}" data-machine-url="{{ url_for('machine_monitor', machine=ns.machine_name) if ns.machine_name else url_for('machine_monitor') }}" role="link" tabindex="0" aria-label="View details for {{ ns.machine_name if ns.machine_name else ('machine ' ~ (ns.machine_id if ns.machine_id else loop.index)) }}">
               <div class="machine-card-top">
                 <div>
                   <span class="machine-id-label">MACHINE {{ ns.machine_id if ns.machine_id else loop.index }}</span>
@@ -180,6 +180,9 @@
           .machine-filter{padding:12px;border:1px solid #dce2ee;border-radius:11px;background:#fff;color:#172033;font:inherit}
           .machine-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));gap:16px}
           .machine-detail-card{min-width:0;padding:18px;border:1px solid #e2e7f0;border-radius:16px;background:linear-gradient(155deg,#fff 0%,#fafbff 100%);box-shadow:0 5px 18px rgba(31,48,85,.035)}
+          .machine-detail-card{cursor:pointer;transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease}
+          .machine-detail-card:hover,.machine-detail-card:focus-visible{transform:translateY(-2px);border-color:#aab8e4;box-shadow:0 10px 26px rgba(31,48,85,.10);outline:none}
+          .machine-detail-card:focus-visible{outline:3px solid #9aaceb;outline-offset:3px}
           .machine-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
           .machine-id-label{font-size:10px;letter-spacing:1.3px;font-weight:800;color:#6b78a3}
           .machine-detail-card h3{margin:6px 0 0;font-size:19px;overflow-wrap:anywhere}
@@ -214,6 +217,22 @@
               option.value = value;
               option.textContent = value.replace(/\b\w/g, letter => letter.toUpperCase());
               select.appendChild(option);
+            });
+            // Clicking a card opens the selected machine's monitoring/details page.
+            // Keep the built-in expand-details control and links working normally.
+            cards.forEach(card => {
+              const openMachine = event => {
+                if (event.target.closest('a, button, summary, details, input, select, textarea, label')) return;
+                window.location.href = card.dataset.machineUrl;
+              };
+              card.addEventListener('click', openMachine);
+              card.addEventListener('keydown', event => {
+                if (event.target !== card) return;
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  window.location.href = card.dataset.machineUrl;
+                }
+              });
             });
             function filterMachines() {
               const query = search.value.trim().toLowerCase();
