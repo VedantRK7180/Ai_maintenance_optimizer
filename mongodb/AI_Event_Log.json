@@ -1,0 +1,796 @@
+[{
+  "_id": {
+    "$oid": "6ac2d907737bd8b985582e1d"
+  },
+  "machine_id": "CNC-102",
+  "event_type": "failure_prediction",
+  "model": "AI4I-RandomForest",
+  "failure_risk": 43,
+  "health_score": 57,
+  "urgency_score": 61.84,
+  "urgency_level": "MEDIUM",
+  "recommendation": "Schedule maintenance soon",
+  "event_time": {
+    "$date": "2026-10-05T04:23:59.566Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6ac2d98520c1a84d8a5d6302"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 3,
+  "machine": {
+    "machine_id": 2,
+    "machine_name": "CNC-102",
+    "machine_type": "CNC Machine"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 43,
+    "health_score": 57,
+    "urgency_score": 61.84,
+    "urgency_level": "MEDIUM"
+  },
+  "recommendation": "Schedule maintenance soon.",
+  "model": {
+    "model_key": "AI4I-RandomForest"
+  },
+  "decision_time": {
+    "$date": "2026-10-03T22:19:25.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6ac2d98520c1a84d8a5d6303"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 4,
+  "machine": {
+    "machine_id": 3,
+    "machine_name": "CNC-103",
+    "machine_type": "CNC Machine"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 68.5,
+    "health_score": 31.5,
+    "urgency_score": 65,
+    "urgency_level": "HIGH"
+  },
+  "recommendation": "Schedule maintenance immediately.",
+  "model": {
+    "model_key": "AI4I-RandomForest"
+  },
+  "decision_time": {
+    "$date": "2026-10-03T22:19:25.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6ac54887bae2be9cefcf4865"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 52,
+  "machine": {
+    "machine_id": 5,
+    "machine_name": "ROB-201",
+    "machine_type": "Robotic Arm"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 0.33333333333333337,
+    "health_score": 99.66666666666667,
+    "urgency_score": 50,
+    "urgency_level": "MEDIUM"
+  },
+  "recommendation": "Schedule maintenance soon",
+  "model": {
+    "model_key": "Robot-RandomForest"
+  },
+  "decision_time": {
+    "$date": "2026-10-06T19:14:15.734Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6ac54887bae2be9cefcf4866"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 53,
+  "machine": {
+    "machine_id": 6,
+    "machine_name": "ROB-202",
+    "machine_type": "Robotic Arm"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 25.666666666666664,
+    "health_score": 74.33333333333334,
+    "urgency_score": 64.94464944649447,
+    "urgency_level": "MEDIUM"
+  },
+  "recommendation": "Schedule maintenance soon",
+  "model": {
+    "model_key": "Robot-RandomForest"
+  },
+  "decision_time": {
+    "$date": "2026-10-06T19:14:15.882Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6ac54887bae2be9cefcf4867"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 54,
+  "machine": {
+    "machine_id": 9,
+    "machine_name": "ROT-301",
+    "machine_type": "Rotating Equipment"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 61.89615226226422,
+    "health_score": 38.10384773773578,
+    "urgency_score": 63.593585965145536,
+    "urgency_level": "MEDIUM"
+  },
+  "recommendation": "Schedule maintenance soon",
+  "model": {
+    "model_key": "NASA-IMS-Bearing"
+  },
+  "decision_time": {
+    "$date": "2026-10-06T19:14:15.901Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6ac54887bae2be9cefcf4868"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 55,
+  "machine": {
+    "machine_id": 10,
+    "machine_name": "ROT-302",
+    "machine_type": "Rotating Equipment"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 61.89615226226422,
+    "health_score": 38.10384773773578,
+    "urgency_score": 65,
+    "urgency_level": "HIGH"
+  },
+  "recommendation": "Schedule maintenance immediately",
+  "model": {
+    "model_key": "NASA-IMS-Bearing"
+  },
+  "decision_time": {
+    "$date": "2026-10-06T19:14:15.912Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6ac54887bae2be9cefcf4869"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 56,
+  "machine": {
+    "machine_id": 11,
+    "machine_name": "ROT-303",
+    "machine_type": "Rotating Equipment"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 61.89615226226422,
+    "health_score": 38.10384773773578,
+    "urgency_score": 52.18495898149368,
+    "urgency_level": "MEDIUM"
+  },
+  "recommendation": "Schedule maintenance soon",
+  "model": {
+    "model_key": "NASA-IMS-Bearing"
+  },
+  "decision_time": {
+    "$date": "2026-10-06T19:14:15.924Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6ac54887bae2be9cefcf486a"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 57,
+  "machine": {
+    "machine_id": 12,
+    "machine_name": "ROT-304",
+    "machine_type": "Rotating Equipment"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 61.89615226226422,
+    "health_score": 38.10384773773578,
+    "urgency_score": 63.593585965145536,
+    "urgency_level": "MEDIUM"
+  },
+  "recommendation": "Schedule maintenance soon",
+  "model": {
+    "model_key": "NASA-IMS-Bearing"
+  },
+  "decision_time": {
+    "$date": "2026-10-06T19:14:15.937Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6ac5498783d3940e5937ab8f"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 58,
+  "machine": {
+    "machine_id": 5,
+    "machine_name": "ROB-201",
+    "machine_type": "Robotic Arm"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 0.33333333333333337,
+    "health_score": 99.66666666666667,
+    "urgency_score": 50,
+    "urgency_level": "MEDIUM"
+  },
+  "recommendation": "Schedule maintenance soon.",
+  "model": {
+    "model_key": "Robot-RandomForest"
+  },
+  "decision_time": {
+    "$date": "2026-10-06T19:18:31.665Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6ac5498783d3940e5937ab90"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 59,
+  "machine": {
+    "machine_id": 6,
+    "machine_name": "ROB-202",
+    "machine_type": "Robotic Arm"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 25.666666666666664,
+    "health_score": 74.33333333333334,
+    "urgency_score": 64.94464944649447,
+    "urgency_level": "MEDIUM"
+  },
+  "recommendation": "Schedule maintenance soon.",
+  "model": {
+    "model_key": "Robot-RandomForest"
+  },
+  "decision_time": {
+    "$date": "2026-10-06T19:18:31.881Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6ac5498783d3940e5937ab91"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 60,
+  "machine": {
+    "machine_id": 9,
+    "machine_name": "ROT-301",
+    "machine_type": "Rotating Equipment"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 61.89615226226422,
+    "health_score": 38.10384773773578,
+    "urgency_score": 63.593585965145536,
+    "urgency_level": "MEDIUM"
+  },
+  "recommendation": "Schedule maintenance soon.",
+  "model": {
+    "model_key": "NASA-IMS-Bearing"
+  },
+  "decision_time": {
+    "$date": "2026-10-06T19:18:31.914Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6ac5498783d3940e5937ab92"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 61,
+  "machine": {
+    "machine_id": 10,
+    "machine_name": "ROT-302",
+    "machine_type": "Rotating Equipment"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 61.89615226226422,
+    "health_score": 38.10384773773578,
+    "urgency_score": 65,
+    "urgency_level": "HIGH"
+  },
+  "recommendation": "Schedule maintenance immediately.",
+  "model": {
+    "model_key": "NASA-IMS-Bearing"
+  },
+  "decision_time": {
+    "$date": "2026-10-06T19:18:31.930Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6ac5498783d3940e5937ab93"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 62,
+  "machine": {
+    "machine_id": 11,
+    "machine_name": "ROT-303",
+    "machine_type": "Rotating Equipment"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 61.89615226226422,
+    "health_score": 38.10384773773578,
+    "urgency_score": 52.18495898149368,
+    "urgency_level": "MEDIUM"
+  },
+  "recommendation": "Schedule maintenance soon.",
+  "model": {
+    "model_key": "NASA-IMS-Bearing"
+  },
+  "decision_time": {
+    "$date": "2026-10-06T19:18:31.948Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6ac5498783d3940e5937ab94"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 63,
+  "machine": {
+    "machine_id": 12,
+    "machine_name": "ROT-304",
+    "machine_type": "Rotating Equipment"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 61.89615226226422,
+    "health_score": 38.10384773773578,
+    "urgency_score": 63.593585965145536,
+    "urgency_level": "MEDIUM"
+  },
+  "recommendation": "Schedule maintenance soon.",
+  "model": {
+    "model_key": "NASA-IMS-Bearing"
+  },
+  "decision_time": {
+    "$date": "2026-10-06T19:18:31.966Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6ac54adec2c499f68d53d9e3"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 64,
+  "machine": {
+    "machine_id": 2,
+    "machine_name": "CNC-102",
+    "machine_type": "CNC Machine"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 43,
+    "health_score": 57.00000000000001,
+    "urgency_score": 61.842105263157904,
+    "urgency_level": "MEDIUM"
+  },
+  "recommendation": "Schedule maintenance soon.",
+  "model": {
+    "model_key": "AI4I-RandomForest"
+  },
+  "decision_time": {
+    "$date": "2026-10-06T19:24:14.668Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6ac54adec2c499f68d53d9e4"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 65,
+  "machine": {
+    "machine_id": 3,
+    "machine_name": "CNC-103",
+    "machine_type": "CNC Machine"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 68.5,
+    "health_score": 31.499999999999993,
+    "urgency_score": 65,
+    "urgency_level": "HIGH"
+  },
+  "recommendation": "Schedule maintenance immediately.",
+  "model": {
+    "model_key": "AI4I-RandomForest"
+  },
+  "decision_time": {
+    "$date": "2026-10-06T19:24:14.772Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6ac54adec2c499f68d53d9e5"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 66,
+  "machine": {
+    "machine_id": 5,
+    "machine_name": "ROB-201",
+    "machine_type": "Robotic Arm"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 0.33333333333333337,
+    "health_score": 99.66666666666667,
+    "urgency_score": 50,
+    "urgency_level": "MEDIUM"
+  },
+  "recommendation": "Schedule maintenance soon.",
+  "model": {
+    "model_key": "Robot-RandomForest"
+  },
+  "decision_time": {
+    "$date": "2026-10-06T19:24:14.914Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6ac54adfc2c499f68d53d9e6"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 67,
+  "machine": {
+    "machine_id": 6,
+    "machine_name": "ROB-202",
+    "machine_type": "Robotic Arm"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 25.666666666666664,
+    "health_score": 74.33333333333334,
+    "urgency_score": 64.94464944649447,
+    "urgency_level": "MEDIUM"
+  },
+  "recommendation": "Schedule maintenance soon.",
+  "model": {
+    "model_key": "Robot-RandomForest"
+  },
+  "decision_time": {
+    "$date": "2026-10-06T19:24:15.052Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6ac54adfc2c499f68d53d9e7"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 68,
+  "machine": {
+    "machine_id": 9,
+    "machine_name": "ROT-301",
+    "machine_type": "Rotating Equipment"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 61.89615226226422,
+    "health_score": 38.10384773773578,
+    "urgency_score": 63.593585965145536,
+    "urgency_level": "MEDIUM"
+  },
+  "recommendation": "Schedule maintenance soon.",
+  "model": {
+    "model_key": "NASA-IMS-Bearing"
+  },
+  "decision_time": {
+    "$date": "2026-10-06T19:24:15.078Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6ac54adfc2c499f68d53d9e8"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 69,
+  "machine": {
+    "machine_id": 10,
+    "machine_name": "ROT-302",
+    "machine_type": "Rotating Equipment"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 61.89615226226422,
+    "health_score": 38.10384773773578,
+    "urgency_score": 65,
+    "urgency_level": "HIGH"
+  },
+  "recommendation": "Schedule maintenance immediately.",
+  "model": {
+    "model_key": "NASA-IMS-Bearing"
+  },
+  "decision_time": {
+    "$date": "2026-10-06T19:24:15.089Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6ac54adfc2c499f68d53d9e9"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 70,
+  "machine": {
+    "machine_id": 11,
+    "machine_name": "ROT-303",
+    "machine_type": "Rotating Equipment"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 61.89615226226422,
+    "health_score": 38.10384773773578,
+    "urgency_score": 52.18495898149368,
+    "urgency_level": "MEDIUM"
+  },
+  "recommendation": "Schedule maintenance soon.",
+  "model": {
+    "model_key": "NASA-IMS-Bearing"
+  },
+  "decision_time": {
+    "$date": "2026-10-06T19:24:15.102Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6ac54adfc2c499f68d53d9ea"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 71,
+  "machine": {
+    "machine_id": 12,
+    "machine_name": "ROT-304",
+    "machine_type": "Rotating Equipment"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 61.89615226226422,
+    "health_score": 38.10384773773578,
+    "urgency_score": 63.593585965145536,
+    "urgency_level": "MEDIUM"
+  },
+  "recommendation": "Schedule maintenance soon.",
+  "model": {
+    "model_key": "NASA-IMS-Bearing"
+  },
+  "decision_time": {
+    "$date": "2026-10-06T19:24:15.115Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6acd13e2f416299da0341185"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 72,
+  "machine": {
+    "machine_id": 2,
+    "machine_name": "CNC-102",
+    "machine_type": "CNC Machine"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 43,
+    "health_score": 57.00000000000001,
+    "urgency_score": 61.842105263157904,
+    "urgency_level": "MEDIUM"
+  },
+  "recommendation": "Schedule maintenance soon.",
+  "model": {
+    "model_key": "AI4I-RandomForest"
+  },
+  "decision_time": {
+    "$date": "2026-10-12T17:07:46.843Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6acd13e2f416299da0341186"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 73,
+  "machine": {
+    "machine_id": 3,
+    "machine_name": "CNC-103",
+    "machine_type": "CNC Machine"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 68.5,
+    "health_score": 31.499999999999993,
+    "urgency_score": 65,
+    "urgency_level": "HIGH"
+  },
+  "recommendation": "Schedule maintenance immediately.",
+  "model": {
+    "model_key": "AI4I-RandomForest"
+  },
+  "decision_time": {
+    "$date": "2026-10-12T17:07:46.998Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6acd13e3f416299da0341187"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 74,
+  "machine": {
+    "machine_id": 5,
+    "machine_name": "ROB-201",
+    "machine_type": "Robotic Arm"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 0.33333333333333337,
+    "health_score": 99.66666666666667,
+    "urgency_score": 50,
+    "urgency_level": "MEDIUM"
+  },
+  "recommendation": "Schedule maintenance soon.",
+  "model": {
+    "model_key": "Robot-RandomForest"
+  },
+  "decision_time": {
+    "$date": "2026-10-12T17:07:47.145Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6acd13e3f416299da0341188"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 75,
+  "machine": {
+    "machine_id": 6,
+    "machine_name": "ROB-202",
+    "machine_type": "Robotic Arm"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 25.666666666666664,
+    "health_score": 74.33333333333334,
+    "urgency_score": 64.94464944649447,
+    "urgency_level": "MEDIUM"
+  },
+  "recommendation": "Schedule maintenance soon.",
+  "model": {
+    "model_key": "Robot-RandomForest"
+  },
+  "decision_time": {
+    "$date": "2026-10-12T17:07:47.279Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6acd13e3f416299da0341189"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 76,
+  "machine": {
+    "machine_id": 9,
+    "machine_name": "ROT-301",
+    "machine_type": "Rotating Equipment"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 61.9,
+    "health_score": 38.1,
+    "urgency_score": 63.59516616314199,
+    "urgency_level": "MEDIUM"
+  },
+  "recommendation": "Schedule maintenance soon.",
+  "model": {
+    "model_key": "NASA-IMS-Bearing"
+  },
+  "decision_time": {
+    "$date": "2026-10-12T17:07:47.320Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6acd13e3f416299da034118a"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 77,
+  "machine": {
+    "machine_id": 10,
+    "machine_name": "ROT-302",
+    "machine_type": "Rotating Equipment"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 61.9,
+    "health_score": 38.1,
+    "urgency_score": 65,
+    "urgency_level": "HIGH"
+  },
+  "recommendation": "Schedule maintenance immediately.",
+  "model": {
+    "model_key": "NASA-IMS-Bearing"
+  },
+  "decision_time": {
+    "$date": "2026-10-12T17:07:47.339Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6acd13e3f416299da034118b"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 78,
+  "machine": {
+    "machine_id": 11,
+    "machine_name": "ROT-303",
+    "machine_type": "Rotating Equipment"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 61.9,
+    "health_score": 38.1,
+    "urgency_score": 52.18950064020486,
+    "urgency_level": "MEDIUM"
+  },
+  "recommendation": "Schedule maintenance soon.",
+  "model": {
+    "model_key": "NASA-IMS-Bearing"
+  },
+  "decision_time": {
+    "$date": "2026-10-12T17:07:47.358Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6acd13e3f416299da034118c"
+  },
+  "source": "MySQL_AI_DECISION",
+  "source_decision_id": 79,
+  "machine": {
+    "machine_id": 12,
+    "machine_name": "ROT-304",
+    "machine_type": "Rotating Equipment"
+  },
+  "event_type": "ai_maintenance_decision",
+  "prediction": {
+    "failure_risk": 61.9,
+    "health_score": 38.1,
+    "urgency_score": 63.59516616314199,
+    "urgency_level": "MEDIUM"
+  },
+  "recommendation": "Schedule maintenance soon.",
+  "model": {
+    "model_key": "NASA-IMS-Bearing"
+  },
+  "decision_time": {
+    "$date": "2026-10-12T17:07:47.377Z"
+  }
+}]

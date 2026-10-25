@@ -1,0 +1,98 @@
+[{
+  "_id": {
+    "$oid": "6ac2dd56663646662dc5e8fd"
+  },
+  "machine": {
+    "machine_name": "CNC-102"
+  },
+  "scenario": {
+    "changed_sensor": "Temperature",
+    "current": {
+      "temperature_C": 75,
+      "rpm": 1400,
+      "torque_Nm": 70,
+      "tool_wear_min": 200
+    },
+    "what_if": {
+      "temperature_C": 85,
+      "rpm": 1400,
+      "torque_Nm": 70,
+      "tool_wear_min": 200
+    }
+  },
+  "ai_results": {
+    "current": {
+      "failure_risk": 43,
+      "health_score": 57,
+      "urgency_score": 61.84,
+      "urgency_level": "MEDIUM"
+    },
+    "what_if": {
+      "failure_risk": 43,
+      "health_score": 57,
+      "urgency_score": 61.84,
+      "urgency_level": "MEDIUM"
+    },
+    "change": {
+      "risk_change": 0,
+      "health_change": 0,
+      "urgency_change": 0
+    }
+  },
+  "event_type": "what_if_simulation",
+  "created_at": {
+    "$date": "2026-10-05T04:42:22.599Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6ac2de6a5210f2c5f0cb3818"
+  },
+  "machine": {
+    "machine_id": 2,
+    "machine_name": "CNC-102",
+    "operating_hours": 7240,
+    "criticality": "High",
+    "production_importance": "High"
+  },
+  "scenario": {
+    "changed_sensor": "Temperature",
+    "current": {
+      "temperature_C": 75,
+      "rpm": 1400,
+      "torque_Nm": 70,
+      "tool_wear_min": 200
+    },
+    "what_if": {
+      "temperature_C": 85,
+      "rpm": 1400,
+      "torque_Nm": 70,
+      "tool_wear_min": 200
+    }
+  },
+  "ai_results": {
+    "current": {
+      "failure_risk": 43,
+      "health_score": 57,
+      "urgency_score": 61.842105263157904,
+      "urgency_level": "MEDIUM"
+    },
+    "what_if": {
+      "failure_risk": 43,
+      "health_score": 57,
+      "urgency_score": 61.842105263157904,
+      "urgency_level": "MEDIUM"
+    },
+    "change": {
+      "risk_change": 0,
+      "health_change": 0,
+      "urgency_change": 0
+    }
+  },
+  "recommendation": "Moderate risk detected. Schedule maintenance soon.",
+  "event_type": "what_if_simulation",
+  "model": "AI4I-RandomForest",
+  "created_at": {
+    "$date": "2026-10-05T04:46:58.232Z"
+  }
+}]
