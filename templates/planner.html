@@ -11,6 +11,7 @@
     <a class="brand" href="{{ url_for('dashboard') }}"><span class="brand-mark small">MO</span> Maintenance Optimizer</a>
     <div class="topbar-right">
       <a class="ghost-button" href="{{ url_for('dashboard') }}">Dashboard</a>
+      <a class="ghost-button" href="{{ url_for('machine_monitor') }}">Machine monitoring</a>
       <a class="ghost-button" href="{{ url_for('simulator') }}">What-If simulator</a>
       <a class="ghost-button" href="{{ url_for('database_browser') }}">Database explorer</a>
       <span class="user-chip">{{ session.get('username', 'Manager') }} <span class="role-dot"></span></span>
@@ -71,6 +72,23 @@
         </div>
       {% else %}
         <div class="empty-state"><div class="empty-icon">MP</div><h3>No AI decisions available</h3><p>Check the MySQL connection and confirm that the AI decision engine has saved records to AI_DECISION.</p></div>
+      {% endif %}
+    </section>
+    <section class="panel">
+      <div class="panel-heading">
+        <div><h2>Submitted maintenance requests</h2><p class="muted">Requests saved from machine monitoring. A request is not a confirmed booking.</p></div>
+        <span class="count-pill">{{ maintenance_requests|length }} requests</span>
+      </div>
+      {% if mongo_error %}<div class="notice warning"><strong>MongoDB:</strong> {{ mongo_error }}</div>{% endif %}
+      {% if maintenance_requests %}
+        <div class="table-scroll"><table>
+          <thead><tr><th>Requested date</th><th>Machine</th><th>Priority</th><th>Status</th><th>Description</th><th>Requested by</th><th>Created</th></tr></thead>
+          <tbody>{% for item in maintenance_requests %}
+            <tr><td>{{ item.requested_date or '—' }}</td><td>{{ item.machine_name or '—' }}</td><td><span class="count-pill">{{ item.priority or 'Normal' }}</span></td><td>{{ item.status or 'Requested' }}</td><td class="wrap-cell">{{ item.description or '—' }}</td><td>{{ item.requested_by or '—' }}</td><td>{{ item.created_at or '—' }}</td></tr>
+          {% endfor %}</tbody>
+        </table></div>
+      {% else %}
+        <div class="empty-state compact"><h3>No saved maintenance requests</h3><p>Requests submitted from Machine Monitoring will appear here when MongoDB is configured.</p></div>
       {% endif %}
     </section>
     <p class="footer-note">AI Maintenance Optimizer · {{ current_year }} · This queue is advisory and does not schedule work automatically.</p>
