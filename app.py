@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from flask import Flask, flash, redirect, render_template, request, session, url_for
 from flask_wtf.csrf import CSRFProtect
 
-from ml.model_utils import predict_failure_probability
+from ml.model_utils import classify_failure_prediction, predict_failure_probability
 from werkzeug.security import check_password_hash
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -196,11 +196,11 @@ def predict_machine_risk(machine_name="CNC-102"):
             raise ValueError("The CNC model does not declare its expected input features.")
 
         input_data = build_cnc_model_input(sensor_data, list(model_features))
-        prediction = int(model.predict(input_data)[0])
+        condition = classify_failure_prediction(model.predict(input_data)[0])
         risk = predict_failure_probability(model, input_data)
         return {
             "machine_name": machine_name,
-            "condition": "FAILURE RISK" if prediction == 1 else "NORMAL",
+            "condition": condition,
             "risk": round(risk * 100, 2),
             "temperature": float(sensor_data["Temperature"]),
             "rpm": float(sensor_data["RPM"]),

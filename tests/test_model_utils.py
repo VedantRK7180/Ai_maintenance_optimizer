@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from ml.model_utils import predict_failure_probability
+from ml.model_utils import classify_failure_prediction, predict_failure_probability
 
 
 class FakeClassifier:
@@ -65,3 +65,16 @@ def test_prediction_only_model_returns_binary_estimate():
 def test_prediction_only_model_rejects_unknown_label():
     with pytest.raises(ValueError, match="Unrecognized binary failure label"):
         predict_failure_probability(PredictionOnlyClassifier("unknown"), [[1]])
+
+
+@pytest.mark.parametrize(
+    ("prediction", "expected"),
+    [(1, "FAILURE RISK"), (0, "NORMAL"), (True, "FAILURE RISK"), (False, "NORMAL"), ("failure", "FAILURE RISK"), ("healthy", "NORMAL")],
+)
+def test_classify_failure_prediction_recognizes_supported_labels(prediction, expected):
+    assert classify_failure_prediction(prediction) == expected
+
+
+def test_classify_failure_prediction_rejects_unknown_label():
+    with pytest.raises(ValueError, match="Unrecognized binary failure label"):
+        classify_failure_prediction("unknown")

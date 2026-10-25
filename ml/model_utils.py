@@ -56,3 +56,13 @@ def predict_failure_probability(model: Any, features: Any) -> float:
     if kind == "normal":
         return 0.0
     raise ValueError(f"Unrecognized binary failure label: {prediction!r}")
+
+
+def classify_failure_prediction(prediction: Any) -> str:
+    """Map a model prediction to a safe display label; reject unknown classes."""
+    kind = _label_kind(prediction)
+    if kind == "failure":
+        return "FAILURE RISK"
+    if kind == "normal":
+        return "NORMAL"
+    raise ValueError(f"Unrecognized binary failure label: {prediction!r}")
