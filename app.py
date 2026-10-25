@@ -484,9 +484,11 @@ def simulator():
 @app.route("/database")
 @login_required
 def database_browser():
-    """Read-only browser for existing MySQL tables and MongoDB collections."""
+    """Read-only searchable, paginated browser for MySQL and MongoDB data."""
     import json
 
+    page_size = 25
+    search_query = request.args.get("q", "").strip()[:100]
     mysql_tables = []
     mysql_error = None
     connection, error = get_mysql_connection()
@@ -501,15 +503,26 @@ def database_browser():
             )
             table_names = [row["TABLE_NAME"] for row in cursor.fetchall()]
             for table_name in table_names:
+                page_key = "mysql_page_" + str(table_name)
+                try:
+                    page = max(1, min(int(request.args.get(page_key, "1")), 1000000))
+                except (TypeError, ValueError):
+                    page = 1
                 safe_name = str(table_name).replace("`", "``")
-                cursor.execute(f"SELECT * FROM `{safe_name}` LIMIT 100")
+                cursor.execute(f"SELECT COUNT(*) AS total FROM `{safe_name}`")
+                total = int(cursor.fetchone()["total"])
+                offset = (page - 1) * page_size
+                cursor.execute(f"SELECT * FROM `{safe_name}` LIMIT %s OFFSET %s", (page_size, offset))
                 rows = cursor.fetchall()
                 columns = [item[0] for item in (cursor.description or [])]
+                if search_query:
+                    needle = search_query.casefold()
+                    rows = [row for row in rows if any(needle in str(value).casefold() for value in row.values() if value is not None)]
                 mysql_tables.append({
-                    "name": table_name,
-                    "columns": columns,
-                    "rows": rows,
-                    "shown": len(rows),
+                    "name": table_name, "columns": columns, "rows": rows,
+                    "shown": len(rows), "total": total, "page": page,
+                    "pages": max(1, (total + page_size - 1) // page_size),
+                    "page_key": page_key,
                 })
             cursor.close()
         except Exception:
@@ -534,11 +547,23 @@ def database_browser():
             if db is None:
                 raise ValueError("Set MONGODB_DATABASE or include the database name in MONGODB_URI.")
             for collection_name in sorted(db.list_collection_names()):
-                documents = list(db[collection_name].find({}, limit=100))
+                page_key = "mongo_page_" + str(collection_name)
+                try:
+                    page = max(1, min(int(request.args.get(page_key, "1")), 1000000))
+                except (TypeError, ValueError):
+                    page = 1
+                collection = db[collection_name]
+                total = collection.count_documents({})
+                cursor = collection.find({}).sort("_id", 1).skip((page - 1) * page_size).limit(page_size)
+                documents = [json.loads(json.dumps(doc, default=str)) for doc in cursor]
+                if search_query:
+                    needle = search_query.casefold()
+                    documents = [doc for doc in documents if needle in json.dumps(doc, ensure_ascii=False).casefold()]
                 mongo_collections.append({
-                    "name": collection_name,
-                    "documents": [json.loads(json.dumps(doc, default=str)) for doc in documents],
-                    "shown": len(documents),
+                    "name": collection_name, "documents": documents,
+                    "shown": len(documents), "total": total, "page": page,
+                    "pages": max(1, (total + page_size - 1) // page_size),
+                    "page_key": page_key,
                 })
         except Exception:
             app.logger.exception("Database browser could not read MongoDB collections")
@@ -548,12 +573,9 @@ def database_browser():
                 client.close()
 
     return render_template(
-        "database.html",
-        mysql_tables=mysql_tables,
-        mysql_error=mysql_error,
-        mongo_collections=mongo_collections,
-        mongo_error=mongo_error,
-        current_year=datetime.now().year,
+        "database.html", mysql_tables=mysql_tables, mysql_error=mysql_error,
+        mongo_collections=mongo_collections, mongo_error=mongo_error,
+        search_query=search_query, current_year=datetime.now().year,
     )
 
 
