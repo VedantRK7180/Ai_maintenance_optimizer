@@ -3,7 +3,12 @@
 # AI Risk + Technician + Spare Part Constraints
 # ============================================================
 
+import os
+
 import mysql.connector
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 # ------------------------------------------------------------
@@ -11,11 +16,19 @@ import mysql.connector
 # ------------------------------------------------------------
 
 def connect_database():
+    """Connect using the same local .env settings as the AI decision engine."""
+    password = os.getenv("MYSQL_PASSWORD", os.getenv("DB_PASSWORD", ""))
+    if not password:
+        raise RuntimeError(
+            "MySQL password is missing. Set MYSQL_PASSWORD (or DB_PASSWORD) in .env."
+        )
+
     return mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password="#123Vrk7",
-        database="AI_Maintenance_DB"
+        host=os.getenv("MYSQL_HOST", os.getenv("DB_HOST", "localhost")),
+        port=int(os.getenv("MYSQL_PORT", "3306")),
+        user=os.getenv("MYSQL_USER", os.getenv("DB_USER", "root")),
+        password=password,
+        database=os.getenv("MYSQL_DATABASE", os.getenv("DB_NAME", "AI_Maintenance_DB")),
     )
 
 

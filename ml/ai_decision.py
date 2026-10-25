@@ -952,8 +952,25 @@ def process_machine(
 
     if model_key == "bearing":
 
+        # The NASA IMS dataset represents a specific bearing test rig.
+        # Never apply its health score to every rotating-equipment machine.
+        configured_machine_id = os.getenv("NASA_IMS_MACHINE_ID", "").strip()
+        if not configured_machine_id:
+            print(
+                "SKIPPED: NASA IMS data is not mapped to a database machine. "
+                "Set NASA_IMS_MACHINE_ID in .env only after confirming the mapping."
+            )
+            return
+
+        if str(machine_id) != configured_machine_id:
+            print(
+                "SKIPPED: this machine is not the configured NASA IMS dataset target "
+                f"(NASA_IMS_MACHINE_ID={configured_machine_id})."
+            )
+            return
+
         print(
-            "Source  : NASA IMS Bearing Dataset"
+            "Source  : NASA IMS Bearing Dataset (explicitly mapped machine)"
         )
 
 
