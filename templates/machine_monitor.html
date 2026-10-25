@@ -44,7 +44,7 @@
   <section class="panel"><div class="panel-heading"><div><h2>Request maintenance</h2><p class="muted">Saves a request in MongoDB collection MAINTENANCE_REQUESTS.</p></div><span class="count-pill">{{ 'Critical suggested' if critical else 'Manual request' }}</span></div>
     <form method="post" action="{{ url_for('schedule_maintenance') }}" class="form-grid">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="machine_name" value="{{ selected_name }}">
-      <label for="requested_date">Requested date<input id="requested_date" name="requested_date" type="date" min="{{ current_year }}-01-01" required></label>
+      <label for="requested_date">Requested date<input id="requested_date" name="requested_date" type="date" min="{{ today }}" required></label>
       <label for="priority">Priority<select id="priority" name="priority"><option {{ 'selected' if critical else '' }} value="{{ 'Critical' if critical else 'Normal' }}">{{ 'Critical' if critical else 'Normal' }}</option><option value="High">High</option><option value="Critical">Critical</option><option value="Low">Low</option></select></label>
       <label class="full-width" for="description">Maintenance needed<textarea id="description" name="description" rows="3" required placeholder="Describe the inspection or repair needed"></textarea></label>
       <div class="full-width"><button class="primary-button" type="submit">Save maintenance request</button></div>
