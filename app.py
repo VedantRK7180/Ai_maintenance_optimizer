@@ -595,6 +595,64 @@ def machine_monitor():
     latest = {}
     for reading in reversed(history):
         latest[str(reading.get("sensor_name", ""))] = reading
+    sensor_names = sorted({str(row.get("sensor_name")) for row in history if row.get("sensor_name")})
+    selected_sensor = request.args.get("sensor", "").strip()
+    if selected_sensor not in sensor_names:
+        selected_sensor = sensor_names[0] if sensor_names else ""
+    chart_rows = []
+    for row in reversed(history):
+        if str(row.get("sensor_name", "")) != selected_sensor:
+            continue
+        try:
+            value = float(row.get("sensor_value"))
+            if math.isfinite(value):
+                chart_rows.append({"time": str(row.get("recorded_at") or ""), "value": value})
+        except (TypeError, ValueError, OverflowError):
+            continue
+    chart_rows = chart_rows[-30:]
+    chart_points = ""
+    if chart_rows:
+        values = [item["value"] for item in chart_rows]
+        low, high = min(values), max(values)
+        spread = high - low or 1.0
+        coords = []
+        for index, item in enumerate(chart_rows):
+            x = 12 + (index * 576 / max(len(chart_rows) - 1, 1))
+            y = 126 - ((item["value"] - low) / spread) * 100
+            coords.append(f"{x:.1f},{y:.1f}")
+        chart_points = " ".join(coords)
+
+    # Optional per-sensor upper limits can be supplied locally as JSON, e.g.
+    # SENSOR_THRESHOLDS_JSON={"Temperature":80,"Vibration":7.5}
+    # These are user-configured alert limits, not universal safety recommendations.
+    configured_thresholds = {}
+    threshold_config_error = None
+    try:
+        raw_thresholds = os.getenv("SENSOR_THRESHOLDS_JSON", "").strip()
+        if raw_thresholds:
+            parsed = json.loads(raw_thresholds)
+            if not isinstance(parsed, dict):
+                raise ValueError("Threshold configuration must be a JSON object.")
+            for key, raw_value in parsed.items():
+                value = float(raw_value)
+                if not math.isfinite(value):
+                    raise ValueError("Threshold values must be finite numbers.")
+                configured_thresholds[str(key)] = value
+    except (ValueError, TypeError, json.JSONDecodeError):
+        app.logger.warning("Invalid SENSOR_THRESHOLDS_JSON configuration")
+        threshold_config_error = "Sensor threshold configuration is invalid; threshold flags are disabled."
+        configured_thresholds = {}
+    threshold_flags = []
+    for sensor_name, row in latest.items():
+        if sensor_name not in configured_thresholds:
+            continue
+        try:
+            value = float(row.get("sensor_value"))
+            if math.isfinite(value) and value > configured_thresholds[sensor_name]:
+                threshold_flags.append({"name": sensor_name, "value": value, "limit": configured_thresholds[sensor_name], "unit": row.get("unit")})
+        except (TypeError, ValueError, OverflowError):
+            continue
+
     decision = next((item for item in decisions if item.get("machine_name") == selected_name), None)
     health = decision.get("health_score") if decision else None
     risk = decision.get("failure_risk") if decision else None
@@ -605,6 +663,9 @@ def machine_monitor():
     return render_template("machine_monitor.html", machines=machines, machine_names=machine_names,
         selected_name=selected_name, history=history, latest=latest, decision=decision,
         health=health, risk=risk, critical=critical, db_error=history_error,
+        sensor_names=sensor_names, selected_sensor=selected_sensor, chart_rows=chart_rows,
+        chart_points=chart_points, threshold_flags=threshold_flags,
+        configured_thresholds=configured_thresholds, threshold_config_error=threshold_config_error,
         current_year=datetime.now().year, today=datetime.now().date().isoformat())
 
 
