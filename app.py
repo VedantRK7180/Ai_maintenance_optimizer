@@ -1,5 +1,6 @@
 import os
 import math
+import json
 import secrets
 import sqlite3
 from datetime import datetime
@@ -311,9 +312,41 @@ def planner():
             -item["risk_numeric"],
         )
     )
+    # Maintenance requests are stored separately in MongoDB; keep this view useful
+    # even when MongoDB is not configured or temporarily unavailable.
+    maintenance_requests = []
+    mongo_error = None
+    mongo_uri = os.getenv("MONGODB_URI", os.getenv("MONGO_URI"))
+    mongo_database = os.getenv("MONGODB_DATABASE", os.getenv("MONGO_DATABASE"))
+    if mongo_uri and mongo_database:
+        client = None
+        try:
+            from pymongo import MongoClient
+            client = MongoClient(mongo_uri, serverSelectionTimeoutMS=2500)
+            client.admin.command("ping")
+            cursor = client[mongo_database]["MAINTENANCE_REQUESTS"].find(
+                {}, {"machine_name": 1, "requested_date": 1, "priority": 1,
+                     "description": 1, "status": 1, "requested_by": 1, "created_at": 1}
+            ).sort([("requested_date", 1), ("created_at", -1)]).limit(100)
+            for item in cursor:
+                item["_id"] = str(item.get("_id", ""))
+                if isinstance(item.get("created_at"), datetime):
+                    item["created_at"] = item["created_at"].strftime("%Y-%m-%d %H:%M")
+                maintenance_requests.append(item)
+        except Exception:
+            app.logger.exception("Could not load maintenance requests from MongoDB")
+            mongo_error = "Saved maintenance requests could not be loaded. Check MongoDB configuration and server logs."
+        finally:
+            if client is not None:
+                client.close()
+    else:
+        mongo_error = "MongoDB is not configured; saved maintenance requests are unavailable."
+
     return render_template(
         "planner.html",
         priorities=priorities,
+        maintenance_requests=maintenance_requests,
+        mongo_error=mongo_error,
         db_error=db_error,
         machine_count=len(machines),
         reading_count=len(readings),
@@ -447,6 +480,275 @@ def simulator():
         simulated_risk=simulated_risk,
         simulated_health=simulated_health,
     )
+
+
+@app.route("/database")
+@login_required
+def database_browser():
+    """Read-only searchable, paginated browser for MySQL and MongoDB data."""
+    import json
+
+    page_size = 25
+    search_query = request.args.get("q", "").strip()[:100]
+    mysql_tables = []
+    mysql_error = None
+    connection, error = get_mysql_connection()
+    if connection is None:
+        mysql_error = error
+    else:
+        try:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute(
+                "SELECT TABLE_NAME FROM information_schema.TABLES "
+                "WHERE TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME"
+            )
+            table_names = [row["TABLE_NAME"] for row in cursor.fetchall()]
+            for table_name in table_names:
+                page_key = "mysql_page_" + str(table_name)
+                try:
+                    page = max(1, min(int(request.args.get(page_key, "1")), 1000000))
+                except (TypeError, ValueError):
+                    page = 1
+                safe_name = str(table_name).replace("`", "``")
+                cursor.execute(f"SELECT COUNT(*) AS total FROM `{safe_name}`")
+                total = int(cursor.fetchone()["total"])
+                pages = max(1, (total + page_size - 1) // page_size)
+                page = min(page, pages)
+                offset = (page - 1) * page_size
+                cursor.execute(f"SELECT * FROM `{safe_name}` LIMIT %s OFFSET %s", (page_size, offset))
+                rows = cursor.fetchall()
+                columns = [item[0] for item in (cursor.description or [])]
+                if search_query:
+                    needle = search_query.casefold()
+                    rows = [row for row in rows if any(needle in str(value).casefold() for value in row.values() if value is not None)]
+                mysql_tables.append({
+                    "name": table_name, "columns": columns, "rows": rows,
+                    "shown": len(rows), "total": total, "page": page,
+                    "pages": pages,
+                    "page_key": page_key,
+                })
+            cursor.close()
+        except Exception:
+            app.logger.exception("Database browser could not read MySQL tables")
+            mysql_error = "Could not read MySQL tables. Check the server logs and database permissions."
+        finally:
+            connection.close()
+
+    mongo_collections = []
+    mongo_error = None
+    mongo_uri = os.getenv("MONGODB_URI", os.getenv("MONGO_URI"))
+    mongo_database = os.getenv("MONGODB_DATABASE", os.getenv("MONGO_DATABASE"))
+    if not mongo_uri:
+        mongo_error = "MongoDB is not configured. Set MONGODB_URI in your local .env file to display collections."
+    else:
+        client = None
+        try:
+            from pymongo import MongoClient
+            client = MongoClient(mongo_uri, serverSelectionTimeoutMS=3000)
+            client.admin.command("ping")
+            db = client[mongo_database] if mongo_database else client.get_default_database()
+            if db is None:
+                raise ValueError("Set MONGODB_DATABASE or include the database name in MONGODB_URI.")
+            for collection_name in sorted(db.list_collection_names()):
+                page_key = "mongo_page_" + str(collection_name)
+                try:
+                    page = max(1, min(int(request.args.get(page_key, "1")), 1000000))
+                except (TypeError, ValueError):
+                    page = 1
+                collection = db[collection_name]
+                total = collection.count_documents({})
+                pages = max(1, (total + page_size - 1) // page_size)
+                page = min(page, pages)
+                cursor = collection.find({}).sort("_id", 1).skip((page - 1) * page_size).limit(page_size)
+                documents = [json.loads(json.dumps(doc, default=str)) for doc in cursor]
+                if search_query:
+                    needle = search_query.casefold()
+                    documents = [doc for doc in documents if needle in json.dumps(doc, ensure_ascii=False).casefold()]
+                mongo_collections.append({
+                    "name": collection_name, "documents": documents,
+                    "shown": len(documents), "total": total, "page": page,
+                    "pages": pages,
+                    "page_key": page_key,
+                })
+        except Exception:
+            app.logger.exception("Database browser could not read MongoDB collections")
+            mongo_error = "Could not read MongoDB collections. Check the URI, database name, and server logs."
+        finally:
+            if client is not None:
+                client.close()
+
+    return render_template(
+        "database.html", mysql_tables=mysql_tables, mysql_error=mysql_error,
+        mongo_collections=mongo_collections, mongo_error=mongo_error,
+        search_query=search_query, current_year=datetime.now().year,
+    )
+
+
+
+@app.route("/machines")
+@login_required
+def machine_monitor():
+    """Show individual machine readings and a read-only history view."""
+    machines, _readings, decisions, db_error = fetch_machine_summary()
+    machine_names = [str(item.get("machine_name")) for item in machines if item.get("machine_name")]
+    selected_name = request.args.get("machine", "").strip()
+    if selected_name not in machine_names:
+        selected_name = machine_names[0] if machine_names else ""
+    history = []
+    history_error = db_error
+    if selected_name:
+        connection, connection_error = get_mysql_connection()
+        if connection is None:
+            history_error = connection_error
+        else:
+            try:
+                cursor = connection.cursor(dictionary=True)
+                cursor.execute("""
+                    SELECT sr.reading_id, sr.recorded_at, sm.sensor_name, sm.sensor_value, sm.unit
+                    FROM MACHINE m
+                    JOIN SENSOR_READING sr ON sr.machine_id = m.machine_id
+                    JOIN SENSOR_MEASUREMENT sm ON sm.reading_id = sr.reading_id
+                    WHERE m.machine_name = %s
+                    ORDER BY sr.recorded_at DESC, sr.reading_id DESC
+                    LIMIT 500
+                """, (selected_name,))
+                history = cursor.fetchall()
+                cursor.close()
+            except Exception:
+                app.logger.exception("Could not load machine sensor history")
+                history_error = "Could not load history for this machine. Check the database schema and server logs."
+            finally:
+                connection.close()
+    latest = {}
+    for reading in reversed(history):
+        latest[str(reading.get("sensor_name", ""))] = reading
+    sensor_names = sorted({str(row.get("sensor_name")) for row in history if row.get("sensor_name")})
+    selected_sensor = request.args.get("sensor", "").strip()
+    if selected_sensor not in sensor_names:
+        selected_sensor = sensor_names[0] if sensor_names else ""
+    chart_rows = []
+    for row in reversed(history):
+        if str(row.get("sensor_name", "")) != selected_sensor:
+            continue
+        try:
+            value = float(row.get("sensor_value"))
+            if math.isfinite(value):
+                chart_rows.append({"time": str(row.get("recorded_at") or ""), "value": value})
+        except (TypeError, ValueError, OverflowError):
+            continue
+    chart_rows = chart_rows[-30:]
+    chart_points = ""
+    if chart_rows:
+        values = [item["value"] for item in chart_rows]
+        low, high = min(values), max(values)
+        spread = high - low or 1.0
+        coords = []
+        for index, item in enumerate(chart_rows):
+            x = 12 + (index * 576 / max(len(chart_rows) - 1, 1))
+            y = 126 - ((item["value"] - low) / spread) * 100
+            coords.append(f"{x:.1f},{y:.1f}")
+        chart_points = " ".join(coords)
+
+    # Optional per-sensor upper limits can be supplied locally as JSON, e.g.
+    # SENSOR_THRESHOLDS_JSON={"Temperature":80,"Vibration":7.5}
+    # These are user-configured alert limits, not universal safety recommendations.
+    configured_thresholds = {}
+    threshold_config_error = None
+    try:
+        raw_thresholds = os.getenv("SENSOR_THRESHOLDS_JSON", "").strip()
+        if raw_thresholds:
+            parsed = json.loads(raw_thresholds)
+            if not isinstance(parsed, dict):
+                raise ValueError("Threshold configuration must be a JSON object.")
+            for key, raw_value in parsed.items():
+                value = float(raw_value)
+                if not math.isfinite(value):
+                    raise ValueError("Threshold values must be finite numbers.")
+                configured_thresholds[str(key)] = value
+    except (ValueError, TypeError, json.JSONDecodeError):
+        app.logger.warning("Invalid SENSOR_THRESHOLDS_JSON configuration")
+        threshold_config_error = "Sensor threshold configuration is invalid; threshold flags are disabled."
+        configured_thresholds = {}
+    threshold_flags = []
+    for sensor_name, row in latest.items():
+        if sensor_name not in configured_thresholds:
+            continue
+        try:
+            value = float(row.get("sensor_value"))
+            if math.isfinite(value) and value > configured_thresholds[sensor_name]:
+                threshold_flags.append({"name": sensor_name, "value": value, "limit": configured_thresholds[sensor_name], "unit": row.get("unit")})
+        except (TypeError, ValueError, OverflowError):
+            continue
+
+    decision = next((item for item in decisions if item.get("machine_name") == selected_name), None)
+    health = decision.get("health_score") if decision else None
+    risk = decision.get("failure_risk") if decision else None
+    try:
+        critical = (float(risk) >= 75) or str(decision.get("urgency_level", "")).upper() == "CRITICAL"
+    except (TypeError, ValueError, AttributeError):
+        critical = bool(decision and str(decision.get("urgency_level", "")).upper() == "CRITICAL")
+    return render_template("machine_monitor.html", machines=machines, machine_names=machine_names,
+        selected_name=selected_name, history=history, latest=latest, decision=decision,
+        health=health, risk=risk, critical=critical, db_error=history_error,
+        sensor_names=sensor_names, selected_sensor=selected_sensor, chart_rows=chart_rows,
+        chart_points=chart_points, threshold_flags=threshold_flags,
+        configured_thresholds=configured_thresholds, threshold_config_error=threshold_config_error,
+        current_year=datetime.now().year, today=datetime.now().date().isoformat())
+
+
+@app.route("/maintenance/schedule", methods=["POST"])
+@login_required
+def schedule_maintenance():
+    """Save a maintenance request in MongoDB; this does not reserve a real-world slot."""
+    machine_name = request.form.get("machine_name", "").strip()
+    requested_date = request.form.get("requested_date", "").strip()
+    priority = request.form.get("priority", "Normal").strip().title()
+    description = request.form.get("description", "").strip()
+    if not machine_name or not requested_date or not description:
+        flash("Machine, requested date, and maintenance description are required.", "error")
+        return redirect(url_for("machine_monitor", machine=machine_name))
+    machines, _readings, _decisions, machine_error = fetch_machine_summary()
+    registered_names = {str(item.get("machine_name", "")).strip() for item in machines}
+    if machine_error or machine_name not in registered_names:
+        flash("Choose a registered machine before submitting a maintenance request.", "error")
+        return redirect(url_for("machine_monitor"))
+    if len(description) > 2000:
+        flash("Please keep the maintenance description under 2,000 characters.", "error")
+        return redirect(url_for("machine_monitor", machine=machine_name))
+    if priority not in {"Critical", "High", "Normal", "Low"}:
+        priority = "Normal"
+    try:
+        requested_dt = datetime.strptime(requested_date, "%Y-%m-%d")
+        if requested_dt.date() < datetime.now().date():
+            raise ValueError
+    except ValueError:
+        flash("Choose a valid maintenance date that is not in the past.", "error")
+        return redirect(url_for("machine_monitor", machine=machine_name))
+    mongo_uri = os.getenv("MONGODB_URI", os.getenv("MONGO_URI"))
+    mongo_database = os.getenv("MONGODB_DATABASE", os.getenv("MONGO_DATABASE"))
+    if not mongo_uri or not mongo_database:
+        flash("MongoDB is not configured. Set MONGODB_URI and MONGODB_DATABASE in .env.", "error")
+        return redirect(url_for("machine_monitor", machine=machine_name))
+    client = None
+    try:
+        from pymongo import MongoClient
+        client = MongoClient(mongo_uri, serverSelectionTimeoutMS=3000)
+        client.admin.command("ping")
+        client[mongo_database]["MAINTENANCE_REQUESTS"].insert_one({
+            "machine_name": machine_name, "requested_date": requested_date,
+            "priority": priority, "description": description, "status": "Requested",
+            "requested_by": session.get("username", "manager"), "created_at": datetime.utcnow(),
+            "source": "AI Maintenance Optimizer web app",
+        })
+        flash("Maintenance request saved. Confirm the actual slot with your maintenance team.", "success")
+    except Exception:
+        app.logger.exception("Could not save maintenance request to MongoDB")
+        flash("Could not save the request. Check MongoDB configuration and server logs.", "error")
+    finally:
+        if client is not None:
+            client.close()
+    return redirect(url_for("machine_monitor", machine=machine_name))
+
 
 @app.route("/logout", methods=["POST"])
 @login_required

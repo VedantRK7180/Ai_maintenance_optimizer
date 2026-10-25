@@ -83,3 +83,11 @@ The shared helper in `ml/model_utils.py` uses the model's class labels to find t
 - Keep `FLASK_DEBUG=false` outside local development. For deployment, use HTTPS and set `COOKIE_SECURE=true`.
 - Manager authentication uses SQLite to avoid making login depend on the factory sensor database being online.
 - Do not deploy with the fallback development secret. Set a long random `FLASK_SECRET_KEY` in `.env`.
+
+
+## Machine monitoring and database explorer
+
+- Open **Machine monitoring** to select a registered machine, inspect its recent sensor history, and plot one sensor's latest numeric trend.
+- Optional upper-limit alerts can be configured locally with `SENSOR_THRESHOLDS_JSON` in `.env`. The value must be a JSON object mapping exact sensor names to numeric upper limits, for example `SENSOR_THRESHOLDS_JSON='{"Temperature":80,"Vibration":7.5}'`. This is an illustration only: verify sensor names, units, and limits for your equipment. No default industrial limits are assumed.
+- The **Database explorer** is read-only. It displays 25 records per page for each MySQL table and MongoDB collection, with Previous/Next controls and a search field. Search filters records on the currently selected page; move between pages to inspect other records. Counts show the total records in each table/collection.
+- Keep local credentials and your real `.env` file out of version control. Only commit placeholder values to `.env.example`.

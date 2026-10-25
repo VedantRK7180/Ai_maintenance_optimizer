@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Machine Monitoring · Maintenance Optimizer</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="{{ url_for('dashboard') }}"><span class="brand-mark small">MO</span> Maintenance Optimizer</a>
+  <div class="topbar-right">
+    <a class="ghost-button" href="{{ url_for('dashboard') }}">Dashboard</a>
+    <a class="ghost-button" href="{{ url_for('planner') }}">Maintenance planner</a>
+    <a class="ghost-button" href="{{ url_for('database_browser') }}">Database explorer</a>
+    <a class="ghost-button" href="{{ url_for('simulator') }}">What-If simulator</a>
+    <form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="ghost-button" type="submit">Log out</button></form>
+  </div>
+</header>
+<main class="page-wrap">
+  <section class="welcome-row"><div><p class="eyebrow">MACHINE DETAIL</p><h1>Interactive machine monitoring</h1><p class="muted">Inspect latest readings, review sensor history, and submit a maintenance request.</p></div><span class="live-pill"><span></span> Database-backed view</span></section>
+  {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="notice {{ 'warning' if category == 'error' else 'success' }}">{{ message }}</div>{% endfor %}{% endwith %}
+  {% if db_error %}<div class="notice warning"><strong>Data connection:</strong> {{ db_error }}</div>{% endif %}
+  <section class="panel">
+    <div class="panel-heading"><div><h2>Select machine</h2><p class="muted">Choose a registered machine to load its readings.</p></div></div>
+    {% if machine_names %}
+    <form method="get" action="{{ url_for('machine_monitor') }}" class="filter-row">
+      <label for="machine">Machine</label><select id="machine" name="machine">{% for name in machine_names %}<option value="{{ name }}" {{ 'selected' if name == selected_name else '' }}>{{ name }}</option>{% endfor %}</select>
+      <button class="primary-button" type="submit">View machine</button>
+    </form>
+    {% else %}<div class="empty-state compact"><h3>No machines found</h3><p>Check that MySQL is configured and MACHINE contains records.</p></div>{% endif %}
+  </section>
+  {% if selected_name %}
+  <section class="stat-grid">
+    <article class="stat-card"><span class="stat-label">Selected machine</span><strong class="stat-value">{{ selected_name }}</strong><span class="stat-foot">From MySQL MACHINE</span></article>
+    <article class="stat-card"><span class="stat-label">AI health score</span><strong class="stat-value">{{ '%.1f'|format(health|float) if health is not none else '—' }}{% if health is not none %}%{% endif %}</strong><span class="stat-foot">Latest saved AI decision</span></article>
+    <article class="stat-card"><span class="stat-label">AI failure risk</span><strong class="stat-value {{ 'status-warn' if risk is not none and risk|float >= 50 else '' }}">{{ '%.1f'|format(risk|float) if risk is not none else '—' }}{% if risk is not none %}%{% endif %}</strong><span class="stat-foot">{{ decision.urgency_level if decision else 'No saved AI decision' }}</span></article>
+    <article class="stat-card"><span class="stat-label">Historical sensor rows</span><strong class="stat-value">{{ history|length }}</strong><span class="stat-foot">Up to 500 latest measurement rows</span></article>
+  </section>
+  {% if critical %}<div class="notice warning"><strong>Critical review recommended.</strong> The saved AI decision indicates critical urgency or failure risk at/above 75%. Confirm with an engineer and consider submitting a maintenance request below.</div>{% endif %}
+  {% if decision %}<section class="panel"><div class="panel-heading"><div><h2>Latest AI recommendation</h2><p class="muted">{{ decision.decision_time or 'Decision timestamp unavailable' }}</p></div><span class="count-pill">{{ decision.urgency_level or 'Unrated' }}</span></div><p>{{ decision.recommendation or 'No recommendation saved.' }}</p><p class="risk-disclaimer">AI scores are advisory estimates, not a verified diagnosis. Confirm thresholds and inspect the machine before acting.</p></section>{% endif %}
+  <section class="panel">
+    <div class="panel-heading"><div><h2>Latest sensor snapshot</h2><p class="muted">Most recent stored value for each sensor name. Units are taken directly from your database.</p></div><span class="count-pill">{{ latest|length }} sensors</span></div>
+    {% if latest %}
+      <div class="sensor-grid">
+        {% for sensor_name, row in latest.items() %}
+          <div><span>{{ sensor_name }}</span><strong>{{ row.sensor_value if row.sensor_value is not none else '—' }}{% if row.unit %} {{ row.unit }}{% endif %}</strong><p class="stat-foot">{{ row.recorded_at or 'Timestamp unavailable' }}</p></div>
+        {% endfor %}
+      </div>
+      <p class="risk-disclaimer">No universal sensor thresholds are assumed because safe limits depend on sensor units, machine model, and operating conditions. Confirm approved limits with your equipment documentation before treating a reading as an alarm.</p>
+    {% else %}
+      <div class="empty-state compact"><h3>No current sensor values</h3><p>Latest sensor values will appear when readings are available for this machine.</p></div>
+    {% endif %}
+  </section>
+  <section class="panel">
+    <div class="panel-heading"><div><h2>Sensor trend</h2><p class="muted">Trend of the selected sensor across the latest available records (up to 30 points).</p></div></div>
+    {% if sensor_names %}
+    <form method="get" action="{{ url_for('machine_monitor') }}" class="filter-row">
+      <input type="hidden" name="machine" value="{{ selected_name }}">
+      <label for="sensor">Sensor</label>
+      <select id="sensor" name="sensor">{% for name in sensor_names %}<option value="{{ name }}" {{ 'selected' if name == selected_sensor else '' }}>{{ name }}</option>{% endfor %}</select>
+      <button class="primary-button" type="submit">Plot sensor</button>
+    </form>
+    {% endif %}
+    {% if chart_rows %}
+      <div class="chart-summary"><span>Min <strong>{{ '%.3f'|format(chart_rows|map(attribute='value')|min) }}</strong></span><span>Max <strong>{{ '%.3f'|format(chart_rows|map(attribute='value')|max) }}</strong></span><span>Latest <strong>{{ '%.3f'|format(chart_rows[-1].value) }}</strong></span></div>
+      <div class="chart-frame">
+        <svg viewBox="0 0 600 150" role="img" aria-label="Trend chart for {{ selected_sensor }}" preserveAspectRatio="none">
+          <line x1="12" y1="26" x2="588" y2="26" class="chart-gridline"/><line x1="12" y1="76" x2="588" y2="76" class="chart-gridline"/><line x1="12" y1="126" x2="588" y2="126" class="chart-gridline"/>
+          {% if chart_rows|length > 1 %}<polyline points="{{ chart_points }}" class="chart-line"/>{% endif %}
+          {% for point in chart_rows %}<circle cx="{{ 12 + loop.index0 * 576 / ((chart_rows|length - 1) if chart_rows|length > 1 else 1) }}" cy="{{ 126 - ((point.value - (chart_rows|map(attribute='value')|min)) / (((chart_rows|map(attribute='value')|max) - (chart_rows|map(attribute='value')|min)) or 1)) * 100 }}" r="3" class="chart-dot"><title>{{ point.time }} · {{ point.value }}</title></circle>{% endfor %}
+        </svg>
+      </div>
+      <div class="chart-labels"><span>{{ chart_rows[0].time }}</span><span>{{ chart_rows[-1].time }}</span></div>
+    {% else %}
+      <div class="empty-state compact"><h3>No numeric history to plot</h3><p>Choose a sensor with numeric readings to display a trend.</p></div>
+    {% endif %}
+  </section>
+  <section class="panel">
+    <div class="panel-heading"><div><h2>Configured threshold alerts</h2><p class="muted">Upper-limit checks use your local SENSOR_THRESHOLDS_JSON configuration.</p></div><span class="count-pill">{{ threshold_flags|length }} flags</span></div>
+    {% if threshold_config_error %}<div class="notice warning">{{ threshold_config_error }}</div>{% endif %}
+    {% if threshold_flags %}
+      <div class="notice warning"><strong>Configured limit exceeded.</strong> Review these readings with qualified maintenance staff.</div>
+      <div class="table-scroll"><table><thead><tr><th>Sensor</th><th>Latest value</th><th>Configured upper limit</th><th>Unit</th></tr></thead><tbody>{% for flag in threshold_flags %}<tr><td>{{ flag.name }}</td><td>{{ flag.value }}</td><td>{{ flag.limit }}</td><td>{{ flag.unit or '—' }}</td></tr>{% endfor %}</tbody></table></div>
+    {% elif configured_thresholds %}
+      <div class="empty-state compact"><h3>No configured upper limits exceeded</h3><p>This only means the latest readings did not exceed configured upper limits; it is not a guarantee of machine safety.</p></div>
+    {% else %}
+      <div class="empty-state compact"><h3>No thresholds configured</h3><p>Add sensor-specific limits to your local .env as SENSOR_THRESHOLDS_JSON. Do not commit machine-specific thresholds unless they are intended to be shared.</p></div>
+    {% endif %}
+  </section>
+  <section class="panel"><div class="panel-heading"><div><h2>Sensor history</h2><p class="muted">Historical measurements are shown in a table; charting depends on the available sensor data and units.</p></div><span class="count-pill">{{ history|length }} rows</span></div>
+    {% if history %}<div class="table-scroll"><table><thead><tr><th>Recorded at</th><th>Sensor</th><th>Value</th><th>Unit</th><th>Reading ID</th></tr></thead><tbody>{% for row in history %}<tr><td>{{ row.recorded_at or '—' }}</td><td>{{ row.sensor_name }}</td><td>{{ row.sensor_value if row.sensor_value is not none else '—' }}</td><td>{{ row.unit or '—' }}</td><td>{{ row.reading_id }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="empty-state compact"><h3>No sensor history available</h3><p>This machine has no readings in the expected sensor tables.</p></div>{% endif %}
+  </section>
+  <section class="panel"><div class="panel-heading"><div><h2>Request maintenance</h2><p class="muted">Saves a request in MongoDB collection MAINTENANCE_REQUESTS.</p></div><span class="count-pill">{{ 'Critical suggested' if critical else 'Manual request' }}</span></div>
+    <form method="post" action="{{ url_for('schedule_maintenance') }}" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="machine_name" value="{{ selected_name }}">
+      <label for="requested_date">Requested date<input id="requested_date" name="requested_date" type="date" min="{{ today }}" required></label>
+      <label for="priority">Priority<select id="priority" name="priority"><option {{ 'selected' if critical else '' }} value="{{ 'Critical' if critical else 'Normal' }}">{{ 'Critical' if critical else 'Normal' }}</option><option value="High">High</option><option value="Critical">Critical</option><option value="Low">Low</option></select></label>
+      <label class="full-width" for="description">Maintenance needed<textarea id="description" name="description" rows="3" required placeholder="Describe the inspection or repair needed"></textarea></label>
+      <div class="full-width"><button class="primary-button" type="submit">Save maintenance request</button></div>
+    </form>
+    <p class="risk-disclaimer">This records a request only. It does not reserve a calendar slot, assign a technician, or shut down the machine automatically.</p>
+  </section>
+  {% endif %}
+  <p class="footer-note">AI Maintenance Optimizer · {{ current_year }} · Verify all critical conditions with qualified maintenance staff.</p>
+</main>
+</body></html>

@@ -12,6 +12,7 @@
     <div class="topbar-right">
       <a class="ghost-button" href="{{ url_for('dashboard') }}">Dashboard</a>
       <a class="ghost-button" href="{{ url_for('planner') }}">Maintenance planner</a>
+      <a class="ghost-button" href="{{ url_for('database_browser') }}">Database explorer</a>
       <span class="user-chip">{{ session.get('username', 'Manager') }} <span class="role-dot"></span></span>
       <form method="post" action="{{ url_for('logout') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
