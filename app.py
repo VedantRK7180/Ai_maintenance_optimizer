@@ -448,6 +448,83 @@ def simulator():
         simulated_health=simulated_health,
     )
 
+
+@app.route("/database")
+@login_required
+def database_browser():
+    """Read-only browser for existing MySQL tables and MongoDB collections."""
+    import json
+
+    mysql_tables = []
+    mysql_error = None
+    connection, error = get_mysql_connection()
+    if connection is None:
+        mysql_error = error
+    else:
+        try:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute(
+                "SELECT TABLE_NAME FROM information_schema.TABLES "
+                "WHERE TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME"
+            )
+            table_names = [row["TABLE_NAME"] for row in cursor.fetchall()]
+            for table_name in table_names:
+                safe_name = str(table_name).replace("`", "``")
+                cursor.execute(f"SELECT * FROM `{safe_name}` LIMIT 100")
+                rows = cursor.fetchall()
+                columns = [item[0] for item in (cursor.description or [])]
+                mysql_tables.append({
+                    "name": table_name,
+                    "columns": columns,
+                    "rows": rows,
+                    "shown": len(rows),
+                })
+            cursor.close()
+        except Exception:
+            app.logger.exception("Database browser could not read MySQL tables")
+            mysql_error = "Could not read MySQL tables. Check the server logs and database permissions."
+        finally:
+            connection.close()
+
+    mongo_collections = []
+    mongo_error = None
+    mongo_uri = os.getenv("MONGODB_URI", os.getenv("MONGO_URI"))
+    mongo_database = os.getenv("MONGODB_DATABASE", os.getenv("MONGO_DATABASE"))
+    if not mongo_uri:
+        mongo_error = "MongoDB is not configured. Set MONGODB_URI in your local .env file to display collections."
+    else:
+        client = None
+        try:
+            from pymongo import MongoClient
+            client = MongoClient(mongo_uri, serverSelectionTimeoutMS=3000)
+            client.admin.command("ping")
+            db = client[mongo_database] if mongo_database else client.get_default_database()
+            if db is None:
+                raise ValueError("Set MONGODB_DATABASE or include the database name in MONGODB_URI.")
+            for collection_name in sorted(db.list_collection_names()):
+                documents = list(db[collection_name].find({}, limit=100))
+                mongo_collections.append({
+                    "name": collection_name,
+                    "documents": [json.loads(json.dumps(doc, default=str)) for doc in documents],
+                    "shown": len(documents),
+                })
+        except Exception:
+            app.logger.exception("Database browser could not read MongoDB collections")
+            mongo_error = "Could not read MongoDB collections. Check the URI, database name, and server logs."
+        finally:
+            if client is not None:
+                client.close()
+
+    return render_template(
+        "database.html",
+        mysql_tables=mysql_tables,
+        mysql_error=mysql_error,
+        mongo_collections=mongo_collections,
+        mongo_error=mongo_error,
+        current_year=datetime.now().year,
+    )
+
+
 @app.route("/logout", methods=["POST"])
 @login_required
 def logout():
