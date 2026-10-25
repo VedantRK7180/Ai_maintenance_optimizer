@@ -512,6 +512,8 @@ def database_browser():
                 safe_name = str(table_name).replace("`", "``")
                 cursor.execute(f"SELECT COUNT(*) AS total FROM `{safe_name}`")
                 total = int(cursor.fetchone()["total"])
+                pages = max(1, (total + page_size - 1) // page_size)
+                page = min(page, pages)
                 offset = (page - 1) * page_size
                 cursor.execute(f"SELECT * FROM `{safe_name}` LIMIT %s OFFSET %s", (page_size, offset))
                 rows = cursor.fetchall()
@@ -522,7 +524,7 @@ def database_browser():
                 mysql_tables.append({
                     "name": table_name, "columns": columns, "rows": rows,
                     "shown": len(rows), "total": total, "page": page,
-                    "pages": max(1, (total + page_size - 1) // page_size),
+                    "pages": pages,
                     "page_key": page_key,
                 })
             cursor.close()
@@ -555,6 +557,8 @@ def database_browser():
                     page = 1
                 collection = db[collection_name]
                 total = collection.count_documents({})
+                pages = max(1, (total + page_size - 1) // page_size)
+                page = min(page, pages)
                 cursor = collection.find({}).sort("_id", 1).skip((page - 1) * page_size).limit(page_size)
                 documents = [json.loads(json.dumps(doc, default=str)) for doc in cursor]
                 if search_query:
@@ -563,7 +567,7 @@ def database_browser():
                 mongo_collections.append({
                     "name": collection_name, "documents": documents,
                     "shown": len(documents), "total": total, "page": page,
-                    "pages": max(1, (total + page_size - 1) // page_size),
+                    "pages": pages,
                     "page_key": page_key,
                 })
         except Exception:
