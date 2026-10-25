@@ -116,7 +116,14 @@ def main() -> int:
         print(f"Torque              : {float(sensor_data['Torque']):.2f} Nm")
         print(f"Tool Wear           : {float(sensor_data['Tool Wear']):.2f} min")
         print("\nPrediction:")
-        print("Condition            :", "FAILURE RISK" if str(prediction).strip().lower() in {"1", "true", "failure", "failed", "fail", "yes"} else "NORMAL")
+        label = str(prediction).strip().lower()
+        if label in {"1", "true", "failure", "failed", "fail", "yes"}:
+            condition = "FAILURE RISK"
+        elif label in {"0", "false", "normal", "healthy", "no"}:
+            condition = "NORMAL"
+        else:
+            condition = f"UNRECOGNIZED MODEL LABEL ({prediction})"
+        print("Condition            :", condition)
         print(f"Failure Risk         : {risk:.2f}%")
         print("\nMySQL connection closed.")
         print("\n============================================\n")
