@@ -11,6 +11,7 @@
     <a class="brand" href="{{ url_for('dashboard') }}"><span class="brand-mark small">MO</span> Maintenance Optimizer</a>
     <div class="topbar-right">
       <a class="ghost-button" href="{{ url_for('planner') }}">Maintenance planner</a>
+      <a class="ghost-button" href="{{ url_for('machine_monitor') }}">Machine monitoring</a>
       <a class="ghost-button" href="{{ url_for('database_browser') }}">Database explorer</a>
       <a class="ghost-button" href="{{ url_for('simulator') }}">What-If simulator</a>
       <span class="user-chip">{{ session.get('username', 'Manager') }} <span class="role-dot"></span></span>
