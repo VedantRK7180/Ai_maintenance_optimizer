@@ -330,9 +330,11 @@ def fetch_latest_cnc_sensor_values(machine_name):
             JOIN SENSOR_MEASUREMENT sm ON sm.reading_id = sr.reading_id
             WHERE m.machine_name = %s
               AND sr.reading_id = (
-                  SELECT MAX(sr2.reading_id)
+                  SELECT sr2.reading_id
                   FROM SENSOR_READING sr2
                   WHERE sr2.machine_id = m.machine_id
+                  ORDER BY sr2.recorded_at DESC, sr2.reading_id DESC
+                  LIMIT 1
               )
         """, (machine_name,))
         rows = cursor.fetchall()
