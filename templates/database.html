@@ -81,9 +81,9 @@
             {% endif %}
             {% if table.pages > 1 %}
               <nav class="db-pagination" aria-label="Pagination for {{ table.name }}">
-                {% if table.page > 1 %}<a class="ghost-button" href="{{ url_for('database_browser', q=search_query, **{table.page_key: table.page - 1}) }}#mysql">← Previous</a>{% endif %}
+                {% if table.page > 1 %}<a class="ghost-button" href="{{ url_for('database_browser') }}?q={{ search_query|urlencode }}&{{ table.page_key }}={{ table.page - 1 }}#mysql">← Previous</a>{% endif %}
                 <span>Page {{ table.page }} of {{ table.pages }}</span>
-                {% if table.page < table.pages %}<a class="ghost-button" href="{{ url_for('database_browser', q=search_query, **{table.page_key: table.page + 1}) }}#mysql">Next →</a>{% endif %}
+                {% if table.page < table.pages %}<a class="ghost-button" href="{{ url_for('database_browser') }}?q={{ search_query|urlencode }}&{{ table.page_key }}={{ table.page + 1 }}#mysql">Next →</a>{% endif %}
               </nav>
             {% endif %}
           </div>
@@ -116,9 +116,9 @@
             {% endif %}
             {% if collection.pages > 1 %}
               <nav class="db-pagination" aria-label="Pagination for {{ collection.name }}">
-                {% if collection.page > 1 %}<a class="ghost-button" href="{{ url_for('database_browser', q=search_query, **{collection.page_key: collection.page - 1}) }}#mongodb">← Previous</a>{% endif %}
+                {% if collection.page > 1 %}<a class="ghost-button" href="{{ url_for('database_browser') }}?q={{ search_query|urlencode }}&{{ collection.page_key }}={{ collection.page - 1 }}#mongodb">← Previous</a>{% endif %}
                 <span>Page {{ collection.page }} of {{ collection.pages }}</span>
-                {% if collection.page < collection.pages %}<a class="ghost-button" href="{{ url_for('database_browser', q=search_query, **{collection.page_key: collection.page + 1}) }}#mongodb">Next →</a>{% endif %}
+                {% if collection.page < collection.pages %}<a class="ghost-button" href="{{ url_for('database_browser') }}?q={{ search_query|urlencode }}&{{ collection.page_key }}={{ collection.page + 1 }}#mongodb">Next →</a>{% endif %}
               </nav>
             {% endif %}
           </div>
